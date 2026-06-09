@@ -9,6 +9,7 @@ from app.api.routes.alerts import router as alerts_router
 from app.api.routes.attack_chains import incident_router as incident_attack_chain_router
 from app.api.routes.attack_chains import router as attack_chains_router
 from app.api.routes.auth import router as auth_router
+from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.detections import router as detections_router
 from app.api.routes.events import router as events_router
 from app.api.routes.health import router as health_router
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
     app.include_router(incidents_router)
     app.include_router(attack_chains_router)
     app.include_router(incident_attack_chain_router)
+    app.include_router(dashboard_router)
     app.include_router(health_router)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app

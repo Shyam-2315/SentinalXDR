@@ -206,6 +206,24 @@ kill-chain phases, a timeline, a graph for visualization, a readable threat
 story, and recommended actions. `GET /api/attack-chains` supports `status`,
 `severity`, `agent_id`, `mitre_technique`, `min_risk_score`, `limit`, and `skip`.
 
+
+Dashboard endpoints (Phase 8):
+
+- GET /api/dashboard/summary
+- GET /api/dashboard/security-posture
+- GET /api/dashboard/recent-alerts
+- GET /api/dashboard/recent-incidents
+- GET /api/dashboard/recent-attack-chains
+- GET /api/dashboard/mitre-summary
+- GET /api/dashboard/severity-trends
+- GET /api/dashboard/agent-health
+
+All dashboard endpoints require bearer auth and are scoped to the authenticated
+user's organisation. Accessible by VIEWER, ANALYST, ORG_ADMIN, and
+SUPER_ADMIN. All 
+ecent-* endpoints accept an optional ?limit=N query
+parameter (1-100, default 10).
+
 OpenAPI docs are available at `http://localhost:8000/api/v1/docs`.
 
 ## Docker Compose

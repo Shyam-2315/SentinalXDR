@@ -1114,3 +1114,212 @@ Redis dependency health. Returns `503` when unavailable.
 ---
 
 *This contract is the authoritative API specification for SentinelXDR Phase 0/1. All endpoints subject to change before production release.*
+
+---
+
+## 15. Dashboard Endpoints (Phase 8)
+
+All dashboard endpoints:
+- Require `Authorization: Bearer <access_token>`
+- Are organisation-scoped — no cross-org data leakage
+- Are accessible to `VIEWER`, `ANALYST`, `ORG_ADMIN`, and `SUPER_ADMIN`
+
+---
+
+### GET /api/dashboard/summary
+
+Returns high-level counts for all major entities in the organisation.
+
+**Response `200`:**
+```json
+{
+  "total_agents": 12,
+  "online_agents": 9,
+  "offline_agents": 2,
+  "disabled_agents": 1,
+  "total_events": 84312,
+  "total_alerts": 47,
+  "open_alerts": 12,
+  "total_incidents": 8,
+  "open_incidents": 3,
+  "total_attack_chains": 5,
+  "active_attack_chains": 2,
+  "critical_alerts": 4,
+  "high_alerts": 8,
+  "risk_score_average": 62.5
+}
+```
+
+---
+
+### GET /api/dashboard/security-posture
+
+Returns a derived security posture score (0–100), a human-readable label, the
+top risk factors, and recommended actions.
+
+**Response `200`:**
+```json
+{
+  "posture_score": 58,
+  "posture_label": "moderate",
+  "top_risks": [
+    "4 critical alert(s) require immediate attention",
+    "8 high-severity alert(s) unresolved",
+    "3 open incident(s) under investigation"
+  ],
+  "recommended_actions": [
+    "Triage and resolve all critical alerts immediately",
+    "Review and close high-severity alerts",
+    "Assign open incidents to analysts for investigation"
+  ]
+}
+```
+
+**Posture label thresholds:**
+
+| Score | Label |
+|---|---|
+| 90–100 | `excellent` |
+| 75–89 | `good` |
+| 55–74 | `moderate` |
+| 35–54 | `risky` |
+| 0–34 | `critical` |
+
+---
+
+### GET /api/dashboard/recent-alerts
+
+Returns the most recent alerts, newest first.
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `limit` | integer | 10 | Number of items to return (1–100) |
+
+**Response `200`:**
+```json
+{
+  "alerts": [ { "...": "AlertRead object" } ],
+  "count": 10
+}
+```
+
+---
+
+### GET /api/dashboard/recent-incidents
+
+Returns the most recent incidents, newest first.
+
+**Query Parameters:** `limit` (1–100, default 10)
+
+**Response `200`:**
+```json
+{
+  "incidents": [ { "...": "IncidentRead object" } ],
+  "count": 10
+}
+```
+
+---
+
+### GET /api/dashboard/recent-attack-chains
+
+Returns the most recent attack chains, newest first.
+
+**Query Parameters:** `limit` (1–100, default 10)
+
+**Response `200`:**
+```json
+{
+  "attack_chains": [ { "...": "AttackChainRead object" } ],
+  "count": 10
+}
+```
+
+---
+
+### GET /api/dashboard/mitre-summary
+
+Returns alert counts grouped by MITRE ATT&CK tactic → technique × severity.
+
+**Response `200`:**
+```json
+{
+  "tactics": [
+    {
+      "tactic": "Execution",
+      "total": 7,
+      "techniques": [
+        { "technique": "T1059", "severity": "critical", "count": 4 },
+        { "technique": "T1059", "severity": "high", "count": 3 }
+      ]
+    },
+    {
+      "tactic": "Persistence",
+      "total": 2,
+      "techniques": [
+        { "technique": "T1053", "severity": "medium", "count": 2 }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/dashboard/severity-trends
+
+Returns daily alert counts by severity for the last 7 days. All 7 days are
+always present in the response, with zero counts for days with no alerts.
+
+**Response `200`:**
+```json
+{
+  "days": [
+    {
+      "date": "2026-06-03",
+      "info": 0,
+      "low": 1,
+      "medium": 3,
+      "high": 2,
+      "critical": 0
+    },
+    {
+      "date": "2026-06-04",
+      "info": 0,
+      "low": 0,
+      "medium": 1,
+      "high": 4,
+      "critical": 1
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/dashboard/agent-health
+
+Returns agent health breakdown: status groups, stale agents (online but no
+heartbeat in > 5 minutes), recently active agents (heartbeat within last 5
+minutes), and total count.
+
+**Response `200`:**
+```json
+{
+  "by_status": [
+    { "status": "online", "count": 9 },
+    { "status": "offline", "count": 2 },
+    { "status": "disabled", "count": 1 }
+  ],
+  "stale_count": 1,
+  "recently_active_count": 8,
+  "disabled_count": 1,
+  "total": 12
+}
+```
+
+---
+
+*Dashboard endpoints added in Phase 8. Designed for direct consumption by the Lovable.dev frontend.*

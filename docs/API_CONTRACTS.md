@@ -1,6 +1,6 @@
 # SentinelXDR — API Contracts
 
-**Version:** 0.5.0 (Phase 5)
+**Version:** 0.6.0 (Phase 6)
 **Status:** Draft
 **Last Updated:** 2026-06-09
 **Base URL:** `https://{host}`
@@ -472,6 +472,8 @@ Secure event batch ingestion. This endpoint uses agent API key authentication on
   "accepted": 1,
   "detections_created": 0,
   "alerts_created": 0,
+  "incidents_created": 0,
+  "incidents_updated": 0,
   "events": [
     {
       "id": "evt_01HXYZ",
@@ -688,7 +690,102 @@ Supported statuses: `open`, `investigating`, `resolved`, `false_positive`.
 
 ---
 
-## 8. Asset Endpoints
+## 8. Incident Endpoints
+
+Incidents are created automatically after event ingestion creates alerts. Phase 6 groups alerts into incidents when they share the same organization, same agent, and either the same first MITRE technique or same alert title within `INCIDENT_CORRELATION_WINDOW_MINUTES` minutes. Open and investigating incidents can be updated by new matching alerts.
+
+### GET /api/incidents
+
+List incidents in the authenticated user's organization.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`, `VIEWER`.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `status` | string | `open`, `investigating`, `contained`, `resolved`, `false_positive` |
+| `severity` | string | `info`, `low`, `medium`, `high`, `critical` |
+| `agent_id` | string | Filter by linked agent |
+| `mitre_technique` | string | Filter by linked MITRE technique |
+| `limit` | integer | Default `100`, max `500` |
+| `skip` | integer | Default `0` |
+
+**Response `200`:**
+```json
+{
+  "incidents": [],
+  "count": 0,
+  "limit": 100,
+  "skip": 0
+}
+```
+
+---
+
+### GET /api/incidents/{incident_id}
+
+Read one incident. Cross-organization access returns `404`.
+
+---
+
+### PATCH /api/incidents/{incident_id}/status
+
+Update incident status.
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`.
+
+**Request:**
+```json
+{
+  "status": "investigating"
+}
+```
+
+Lightweight transition rules:
+
+- `open` -> `investigating`, `contained`, `resolved`, `false_positive`
+- `investigating` -> `contained`, `resolved`, `false_positive`
+- `contained` -> `resolved`
+- `resolved` and `false_positive` are terminal unless `ORG_ADMIN` or `SUPER_ADMIN` reopens to `open`
+
+---
+
+### PATCH /api/incidents/{incident_id}/assign
+
+Assign or clear assignment. The assignee must belong to the same organization.
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`.
+
+**Request:**
+```json
+{
+  "assigned_to_user_id": "usr_01HXYZ"
+}
+```
+
+Use `null` to clear assignment.
+
+---
+
+### PATCH /api/incidents/{incident_id}/summary
+
+Update or clear the incident summary.
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`.
+
+**Request:**
+```json
+{
+  "summary": "Encoded PowerShell activity under investigation."
+}
+```
+
+---
+
+## 9. Asset Endpoints
 
 ### GET /assets
 
@@ -754,7 +851,7 @@ Remove network isolation from an endpoint.
 
 ---
 
-## 9. Rules Endpoints
+## 10. Rules Endpoints
 
 ### GET /rules
 
@@ -799,7 +896,7 @@ Delete a detection rule.
 
 ---
 
-## 10. WebSocket — Real-Time Alert Stream
+## 11. WebSocket — Real-Time Alert Stream
 
 ### WS /ws/alerts
 
@@ -845,7 +942,7 @@ Establishes a real-time connection for alert notifications.
 
 ---
 
-## 11. System / Health Endpoints
+## 12. System / Health Endpoints
 
 ### GET /health/live
 
@@ -885,7 +982,7 @@ Redis dependency health. Returns `503` when unavailable.
 
 ---
 
-## 12. Common Event Types Reference
+## 13. Common Event Types Reference
 
 | `event_type` | Description | Key Fields |
 |---|---|---|

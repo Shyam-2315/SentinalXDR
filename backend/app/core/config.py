@@ -42,6 +42,10 @@ class Settings(BaseSettings):
         default=100,
         alias="EVENT_INGEST_BATCH_SIZE_LIMIT",
     )
+    incident_correlation_window_minutes: int = Field(
+        default=30,
+        alias="INCIDENT_CORRELATION_WINDOW_MINUTES",
+    )
 
 
 @lru_cache

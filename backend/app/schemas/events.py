@@ -42,6 +42,8 @@ class EventIngestResponse(BaseModel):
     accepted: int
     detections_created: int = 0
     alerts_created: int = 0
+    incidents_created: int = 0
+    incidents_updated: int = 0
     events: list[EventRead]
 
 

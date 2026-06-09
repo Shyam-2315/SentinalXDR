@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -12,6 +12,7 @@ from app.api.dependencies import (
     get_detection_result_repository,
     get_detection_rule_repository,
     get_event_repository,
+    get_incident_repository,
     get_organization_repository,
     get_user_repository,
 )
@@ -28,9 +29,11 @@ from app.models.alert import Alert, AlertStatus
 from app.models.auth import Role, UserStatus
 from app.models.detection import DetectionResult, DetectionRule
 from app.models.event import Event, EventSeverity, EventSource
+from app.models.incident import Incident, IncidentStatus
 from app.models.organization import Organization
 from app.models.user import User
 from app.repositories.detections import builtin_detection_rules
+from app.repositories.incidents import append_unique, max_severity, merge_unique
 from app.schemas.events import EventIngestItem
 
 
@@ -43,6 +46,7 @@ class EventTestStore:
         self.rules: dict[str, DetectionRule] = {}
         self.results: dict[str, DetectionResult] = {}
         self.alerts: dict[str, Alert] = {}
+        self.incidents: dict[str, Incident] = {}
 
 
 class FakeOrganizationRepository:
@@ -470,6 +474,171 @@ class FakeAlertRepository:
         return updated
 
 
+class FakeIncidentRepository:
+    def __init__(self, store: EventTestStore) -> None:
+        self.store = store
+
+    async def find_matching_open_incident(
+        self,
+        *,
+        alert: Alert,
+        correlation_window_minutes: int,
+    ) -> Incident | None:
+        earliest = alert.created_at - timedelta(minutes=correlation_window_minutes)
+        candidates = [
+            incident
+            for incident in self.store.incidents.values()
+            if incident.organization_id == alert.organization_id
+            and alert.agent_id in incident.agent_ids
+            and incident.status in {IncidentStatus.OPEN, IncidentStatus.INVESTIGATING}
+            and incident.last_seen_at >= earliest
+            and (
+                incident.title == alert.title
+                or bool(set(incident.mitre_techniques) & set(alert.mitre_techniques[:1]))
+            )
+        ]
+        candidates.sort(key=lambda incident: incident.last_seen_at, reverse=True)
+        return candidates[0] if candidates else None
+
+    async def create_from_alert(self, alert: Alert) -> Incident:
+        now = datetime.now(UTC)
+        incident = Incident(
+            id=f"inc_{uuid4().hex}",
+            organization_id=alert.organization_id,
+            title=alert.title,
+            description=alert.description,
+            severity=alert.severity,
+            status=IncidentStatus.OPEN,
+            alert_ids=[alert.id],
+            detection_result_ids=[alert.detection_result_id],
+            event_ids=[alert.event_id],
+            agent_ids=[alert.agent_id],
+            mitre_tactics=alert.mitre_tactics,
+            mitre_techniques=alert.mitre_techniques,
+            tags=alert.tags,
+            first_seen_at=alert.created_at,
+            last_seen_at=alert.created_at,
+            created_at=now,
+            updated_at=now,
+        )
+        self.store.incidents[incident.id] = incident
+        return incident
+
+    async def append_alert(self, *, incident: Incident, alert: Alert) -> Incident:
+        updated = incident.model_copy(
+            update={
+                "severity": max_severity(incident.severity, alert.severity),
+                "alert_ids": append_unique(incident.alert_ids, [alert.id]),
+                "detection_result_ids": append_unique(
+                    incident.detection_result_ids,
+                    [alert.detection_result_id],
+                ),
+                "event_ids": append_unique(incident.event_ids, [alert.event_id]),
+                "agent_ids": append_unique(incident.agent_ids, [alert.agent_id]),
+                "mitre_tactics": merge_unique(incident.mitre_tactics, alert.mitre_tactics),
+                "mitre_techniques": merge_unique(
+                    incident.mitre_techniques,
+                    alert.mitre_techniques,
+                ),
+                "tags": merge_unique(incident.tags, alert.tags),
+                "last_seen_at": max(incident.last_seen_at, alert.created_at),
+                "updated_at": datetime.now(UTC),
+            },
+        )
+        self.store.incidents[incident.id] = updated
+        return updated
+
+    async def list_by_organization(
+        self,
+        *,
+        organization_id: str,
+        status: IncidentStatus | None = None,
+        severity: EventSeverity | None = None,
+        agent_id: str | None = None,
+        mitre_technique: str | None = None,
+        limit: int = 100,
+        skip: int = 0,
+    ) -> list[Incident]:
+        incidents = [
+            incident
+            for incident in self.store.incidents.values()
+            if incident.organization_id == organization_id
+            and (status is None or incident.status == status)
+            and (severity is None or incident.severity == severity)
+            and (agent_id is None or agent_id in incident.agent_ids)
+            and (mitre_technique is None or mitre_technique in incident.mitre_techniques)
+        ]
+        incidents.sort(key=lambda incident: incident.updated_at, reverse=True)
+        return incidents[skip : skip + limit]
+
+    async def find_by_id_for_organization(
+        self,
+        *,
+        incident_id: str,
+        organization_id: str,
+    ) -> Incident | None:
+        incident = self.store.incidents.get(incident_id)
+        if incident is None or incident.organization_id != organization_id:
+            return None
+        return incident
+
+    async def update_status(
+        self,
+        *,
+        incident_id: str,
+        organization_id: str,
+        status: IncidentStatus,
+    ) -> Incident | None:
+        return await self._update(
+            incident_id=incident_id,
+            organization_id=organization_id,
+            fields={"status": status},
+        )
+
+    async def update_assignment(
+        self,
+        *,
+        incident_id: str,
+        organization_id: str,
+        assigned_to_user_id: str | None,
+    ) -> Incident | None:
+        return await self._update(
+            incident_id=incident_id,
+            organization_id=organization_id,
+            fields={"assigned_to_user_id": assigned_to_user_id},
+        )
+
+    async def update_summary(
+        self,
+        *,
+        incident_id: str,
+        organization_id: str,
+        summary: str | None,
+    ) -> Incident | None:
+        return await self._update(
+            incident_id=incident_id,
+            organization_id=organization_id,
+            fields={"summary": summary},
+        )
+
+    async def _update(
+        self,
+        *,
+        incident_id: str,
+        organization_id: str,
+        fields: dict[str, Any],
+    ) -> Incident | None:
+        incident = await self.find_by_id_for_organization(
+            incident_id=incident_id,
+            organization_id=organization_id,
+        )
+        if incident is None:
+            return None
+        updated = incident.model_copy(update={**fields, "updated_at": datetime.now(UTC)})
+        self.store.incidents[incident.id] = updated
+        return updated
+
+
 @pytest.fixture(autouse=True)
 def clear_settings_cache() -> Iterator[None]:
     get_settings.cache_clear()
@@ -497,6 +666,7 @@ def client(store: EventTestStore) -> Iterator[TestClient]:
         lambda: FakeDetectionResultRepository(store)
     )
     app.dependency_overrides[get_alert_repository] = lambda: FakeAlertRepository(store)
+    app.dependency_overrides[get_incident_repository] = lambda: FakeIncidentRepository(store)
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -1188,3 +1358,417 @@ def test_ingestion_response_includes_detection_and_alert_counts(
     assert body["accepted"] == 1
     assert body["detections_created"] == 1
     assert body["alerts_created"] == 1
+
+
+def test_ingestion_creates_incident_when_alert_created(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    body = ingest_events(client, api_key, [powershell_event()])
+
+    assert body["incidents_created"] == 1
+    assert body["incidents_updated"] == 0
+    incident = next(iter(store.incidents.values()))
+    assert incident.alert_ids == [next(iter(store.alerts))]
+
+
+def test_second_matching_alert_updates_existing_incident(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, api_key, [powershell_event()])
+    second = ingest_events(client, api_key, [powershell_event()])
+
+    assert second["incidents_created"] == 0
+    assert second["incidents_updated"] == 1
+    assert len(store.incidents) == 1
+    assert len(next(iter(store.incidents.values())).alert_ids) == 2
+
+
+def test_non_matching_alert_creates_separate_incident(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, api_key, [powershell_event()])
+    ingest_events(client, api_key, [mimikatz_event()])
+
+    assert len(store.incidents) == 2
+
+
+def test_incident_severity_becomes_max_linked_alert_severity(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    low_rule = custom_rule_payload(name="Repeated Tool", severity="low")
+    critical_rule = custom_rule_payload(name="Critical Repeated Tool", severity="critical")
+    for payload in [low_rule, critical_rule]:
+        rule = DetectionRule(
+            id=f"rule_{uuid4().hex}",
+            organization_id=organization.id,
+            name=payload["name"],
+            description=payload["description"],
+            enabled=True,
+            severity=EventSeverity(payload["severity"]),
+            source=EventSource(payload["source"]),
+            event_type=payload["event_type"],
+            conditions=payload["conditions"],
+            mitre_tactics=payload["mitre_tactics"],
+            mitre_techniques=["T1105"],
+            tags=payload["tags"],
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        store.rules[rule.id] = rule
+
+    ingest_events(
+        client,
+        api_key,
+        [event_payload(normalized_fields={"command_line": "curl http://example.test/a"})],
+    )
+
+    incident = next(iter(store.incidents.values()))
+    assert incident.severity == EventSeverity.CRITICAL
+    assert len(incident.alert_ids) == 2
+
+
+def test_ingestion_response_includes_incident_counts(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    first = ingest_events(client, api_key, [powershell_event()])
+    second = ingest_events(client, api_key, [powershell_event()])
+
+    assert first["incidents_created"] == 1
+    assert first["incidents_updated"] == 0
+    assert second["incidents_created"] == 0
+    assert second["incidents_updated"] == 1
+
+
+def test_list_incidents_org_scoped(client: TestClient, store: EventTestStore) -> None:
+    org_one, _, token_one = seed_principal(store, email="inc-one@example.com")
+    _, key_one = seed_agent(store, organization_id=org_one.id)
+    org_two, _, _ = seed_principal(store, email="inc-two@example.com")
+    _, key_two = seed_agent(store, organization_id=org_two.id)
+    ingest_events(client, key_one, [powershell_event()])
+    ingest_events(client, key_two, [powershell_event()])
+
+    response = client.get("/api/incidents", headers={"Authorization": f"Bearer {token_one}"})
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("params", "expected_count"),
+    [
+        ({"status": "open"}, 2),
+        ({"severity": "critical"}, 1),
+        ({"mitre_technique": "T1003"}, 1),
+    ],
+)
+def test_incident_filters_work_for_status_severity_mitre(
+    client: TestClient,
+    store: EventTestStore,
+    params: dict[str, str],
+    expected_count: int,
+) -> None:
+    organization, _, token = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    ingest_events(client, api_key, [mimikatz_event()])
+
+    response = client.get(
+        "/api/incidents",
+        params=params,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["count"] == expected_count
+
+
+def test_incident_filter_works_for_agent_id(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store)
+    agent_one, key_one = seed_agent(store, organization_id=organization.id)
+    _, key_two = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, key_one, [powershell_event()])
+    ingest_events(client, key_two, [powershell_event()])
+
+    response = client.get(
+        "/api/incidents",
+        params={"agent_id": agent_one.id},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+    assert response.json()["incidents"][0]["agent_ids"] == [agent_one.id]
+
+
+def test_get_incident_by_id_works(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+
+    response = client.get(
+        f"/api/incidents/{incident_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == incident_id
+
+
+def test_cross_org_incident_access_blocked(client: TestClient, store: EventTestStore) -> None:
+    org_one, _, _ = seed_principal(store, email="inc-cross-one@example.com")
+    _, key_one = seed_agent(store, organization_id=org_one.id)
+    _, _, token_two = seed_principal(store, email="inc-cross-two@example.com")
+    ingest_events(client, key_one, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+
+    response = client.get(
+        f"/api/incidents/{incident_id}",
+        headers={"Authorization": f"Bearer {token_two}"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_viewer_can_list_read_but_cannot_update_incident(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, viewer_token = create_user(
+        store,
+        organization_id=organization.id,
+        role=Role.VIEWER,
+        email="viewer-incidents@example.com",
+    )
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+
+    list_response = client.get(
+        "/api/incidents",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+    )
+    detail_response = client.get(
+        f"/api/incidents/{incident_id}",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+    )
+    status_response = client.patch(
+        f"/api/incidents/{incident_id}/status",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+        json={"status": "investigating"},
+    )
+
+    assert list_response.status_code == 200
+    assert detail_response.status_code == 200
+    assert status_response.status_code == 403
+
+
+def test_analyst_can_update_incident_status(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+
+    response = client.patch(
+        f"/api/incidents/{incident_id}/status",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "investigating"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "investigating"
+
+
+def test_invalid_incident_status_transition_rejected(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+    first = client.patch(
+        f"/api/incidents/{incident_id}/status",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "resolved"},
+    )
+    assert first.status_code == 200
+
+    response = client.patch(
+        f"/api/incidents/{incident_id}/status",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "investigating"},
+    )
+
+    assert response.status_code == 400
+
+
+def test_org_admin_can_reopen_resolved_incident(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store, role=Role.ORG_ADMIN)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+    resolved = client.patch(
+        f"/api/incidents/{incident_id}/status",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "resolved"},
+    )
+    assert resolved.status_code == 200
+
+    response = client.patch(
+        f"/api/incidents/{incident_id}/status",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "open"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "open"
+
+
+def test_assign_incident_to_same_org_user_works(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    assignee, _ = create_user(
+        store,
+        organization_id=organization.id,
+        role=Role.ANALYST,
+        email="assignee@example.com",
+    )
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+
+    response = client.patch(
+        f"/api/incidents/{incident_id}/assign",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"assigned_to_user_id": assignee.id},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["assigned_to_user_id"] == assignee.id
+
+
+def test_cross_org_assignment_blocked(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    other_org, _, _ = seed_principal(store, email="other-assignee-org@example.com")
+    other_user, _ = create_user(
+        store,
+        organization_id=other_org.id,
+        role=Role.ANALYST,
+        email="other-assignee@example.com",
+    )
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+
+    response = client.patch(
+        f"/api/incidents/{incident_id}/assign",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"assigned_to_user_id": other_user.id},
+    )
+
+    assert response.status_code == 404
+
+
+def test_clearing_incident_assignment_works(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    assignee, _ = create_user(
+        store,
+        organization_id=organization.id,
+        role=Role.ANALYST,
+        email="clear-assignee@example.com",
+    )
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+    assigned = client.patch(
+        f"/api/incidents/{incident_id}/assign",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"assigned_to_user_id": assignee.id},
+    )
+    assert assigned.status_code == 200
+
+    response = client.patch(
+        f"/api/incidents/{incident_id}/assign",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"assigned_to_user_id": None},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["assigned_to_user_id"] is None
+
+
+def test_updating_incident_summary_works(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+
+    response = client.patch(
+        f"/api/incidents/{incident_id}/summary",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"summary": "Encoded PowerShell activity under investigation."},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["summary"] == "Encoded PowerShell activity under investigation."
+
+
+def test_duplicate_incident_references_are_not_added(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident = next(iter(store.incidents.values()))
+    alert = next(iter(store.alerts.values()))
+
+    updated = awaitable_append_duplicate(store, incident, alert)
+
+    assert len(updated.alert_ids) == 1
+    assert len(updated.detection_result_ids) == 1
+    assert len(updated.event_ids) == 1
+    assert len(updated.agent_ids) == 1
+
+
+def awaitable_append_duplicate(
+    store: EventTestStore,
+    incident: Incident,
+    alert: Alert,
+) -> Incident:
+    updated = incident.model_copy(
+        update={
+            "alert_ids": append_unique(incident.alert_ids, [alert.id]),
+            "detection_result_ids": append_unique(
+                incident.detection_result_ids,
+                [alert.detection_result_id],
+            ),
+            "event_ids": append_unique(incident.event_ids, [alert.event_id]),
+            "agent_ids": append_unique(incident.agent_ids, [alert.agent_id]),
+        },
+    )
+    store.incidents[incident.id] = updated
+    return updated

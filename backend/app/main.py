@@ -10,6 +10,7 @@ from app.api.routes.auth import router as auth_router
 from app.api.routes.detections import router as detections_router
 from app.api.routes.events import router as events_router
 from app.api.routes.health import router as health_router
+from app.api.routes.incidents import router as incidents_router
 from app.core.config import get_settings
 from app.db.mongodb import mongodb
 from app.db.redis import redis_store
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(events_router)
     app.include_router(detections_router)
     app.include_router(alerts_router)
+    app.include_router(incidents_router)
     app.include_router(health_router)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app

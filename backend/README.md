@@ -64,6 +64,14 @@ Detection and alert endpoints:
 - `GET /api/alerts/{alert_id}`
 - `PATCH /api/alerts/{alert_id}/status`
 
+Incident endpoints:
+
+- `GET /api/incidents`
+- `GET /api/incidents/{incident_id}`
+- `PATCH /api/incidents/{incident_id}/status`
+- `PATCH /api/incidents/{incident_id}/assign`
+- `PATCH /api/incidents/{incident_id}/summary`
+
 Register and login return a frontend-friendly payload:
 
 ```json
@@ -123,7 +131,9 @@ curl -X POST http://localhost:8000/api/agents/heartbeat \
 
 Event ingestion also uses `X-Agent-Key` only. The backend assigns
 `organization_id`, `agent_id`, and `received_at` server-side, then evaluates
-enabled built-in and organization rules:
+enabled built-in and organization rules. Matching alerts are grouped into
+incidents by organization, agent, MITRE technique or title, and the
+`INCIDENT_CORRELATION_WINDOW_MINUTES` setting:
 
 ```bash
 curl -X POST http://localhost:8000/api/events/ingest \
@@ -177,6 +187,11 @@ Detection rules use safe AND-based conditions only. Supported operators are
   "tags": ["custom"]
 }
 ```
+
+Incidents are organization-scoped and dashboard-friendly. `GET /api/incidents`
+supports `status`, `severity`, `agent_id`, `mitre_technique`, `limit`, and
+`skip`. Analysts and admins can update status, assignment, and summary; viewers
+can list and read only.
 
 OpenAPI docs are available at `http://localhost:8000/api/v1/docs`.
 

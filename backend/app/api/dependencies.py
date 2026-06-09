@@ -12,6 +12,7 @@ from app.repositories.agents import AgentRepository
 from app.repositories.alerts import AlertRepository
 from app.repositories.detections import DetectionResultRepository, DetectionRuleRepository
 from app.repositories.events import EventRepository
+from app.repositories.incidents import IncidentRepository
 from app.repositories.organizations import OrganizationRepository
 from app.repositories.users import UserRepository
 
@@ -44,6 +45,10 @@ def get_detection_result_repository() -> DetectionResultRepository:
 
 def get_alert_repository() -> AlertRepository:
     return AlertRepository(get_database())
+
+
+def get_incident_repository() -> IncidentRepository:
+    return IncidentRepository(get_database())
 
 
 async def get_current_user(

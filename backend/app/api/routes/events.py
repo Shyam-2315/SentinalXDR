@@ -8,6 +8,7 @@ from app.api.dependencies import (
     get_detection_result_repository,
     get_detection_rule_repository,
     get_event_repository,
+    get_incident_repository,
     require_roles,
 )
 from app.core.config import get_settings
@@ -19,6 +20,7 @@ from app.repositories.agents import AgentRepository
 from app.repositories.alerts import AlertRepository
 from app.repositories.detections import DetectionResultRepository, DetectionRuleRepository
 from app.repositories.events import EventRepository
+from app.repositories.incidents import IncidentRepository
 from app.schemas.events import (
     EventIngestRequest,
     EventIngestResponse,
@@ -26,6 +28,7 @@ from app.schemas.events import (
     EventRead,
 )
 from app.services.detection_engine import DetectionEngine
+from app.services.incident_engine import IncidentEngine
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -61,6 +64,7 @@ async def ingest_events(
         Depends(get_detection_result_repository),
     ],
     alerts: Annotated[AlertRepository, Depends(get_alert_repository)],
+    incidents: Annotated[IncidentRepository, Depends(get_incident_repository)],
     agent_key: Annotated[str | None, Header(alias="X-Agent-Key")] = None,
 ) -> EventIngestResponse:
     settings = get_settings()
@@ -103,10 +107,16 @@ async def ingest_events(
         detection_results,
         alerts,
     ).evaluate_events(stored_events)
+    created_incidents, updated_incidents = await IncidentEngine(
+        incidents,
+        settings.incident_correlation_window_minutes,
+    ).process_alerts(created_alerts)
     return EventIngestResponse(
         accepted=len(stored_events),
         detections_created=len(created_results),
         alerts_created=len(created_alerts),
+        incidents_created=len(created_incidents),
+        incidents_updated=len(updated_incidents),
         events=[to_event_read(event) for event in stored_events],
     )
 

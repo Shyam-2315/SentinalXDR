@@ -8,6 +8,7 @@ from app.core.security import decode_token
 from app.db.mongodb import get_database
 from app.models.auth import Role, UserStatus
 from app.models.user import User
+from app.repositories.agents import AgentRepository
 from app.repositories.organizations import OrganizationRepository
 from app.repositories.users import UserRepository
 
@@ -20,6 +21,10 @@ def get_user_repository() -> UserRepository:
 
 def get_organization_repository() -> OrganizationRepository:
     return OrganizationRepository(get_database())
+
+
+def get_agent_repository() -> AgentRepository:
+    return AgentRepository(get_database())
 
 
 async def get_current_user(

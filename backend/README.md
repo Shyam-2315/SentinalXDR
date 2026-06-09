@@ -36,6 +36,14 @@ Auth endpoints:
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
 
+Agent endpoints:
+
+- `POST /api/agents/register`
+- `POST /api/agents/heartbeat`
+- `GET /api/agents`
+- `GET /api/agents/{agent_id}`
+- `POST /api/agents/{agent_id}/disable`
+
 Register and login return a frontend-friendly payload:
 
 ```json
@@ -60,6 +68,38 @@ Register and login return a frontend-friendly payload:
 
 The first registered user creates an organization and becomes `ORG_ADMIN`.
 Additional users must register with an existing `organization_id`.
+
+Agent registration requires a bearer token for `SUPER_ADMIN`, `ORG_ADMIN`, or
+`ANALYST`. It returns the plaintext `api_key` only once:
+
+```json
+{
+  "agent": {
+    "id": "agt_...",
+    "organization_id": "org_...",
+    "name": "workstation-1",
+    "hostname": "workstation-1.local",
+    "os_type": "linux",
+    "agent_version": "1.0.0",
+    "status": "offline",
+    "last_seen_at": null,
+    "ip_address": null,
+    "tags": ["endpoint"],
+    "created_at": "2026-06-09T00:00:00Z",
+    "updated_at": "2026-06-09T00:00:00Z"
+  },
+  "api_key": "sxag_..."
+}
+```
+
+Agent heartbeat uses `X-Agent-Key` only:
+
+```bash
+curl -X POST http://localhost:8000/api/agents/heartbeat \
+  -H "X-Agent-Key: sxag_..." \
+  -H "Content-Type: application/json" \
+  -d '{"agent_version":"1.0.1","ip_address":"10.0.0.5"}'
+```
 
 OpenAPI docs are available at `http://localhost:8000/api/v1/docs`.
 

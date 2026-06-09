@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from secrets import token_urlsafe
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -20,6 +21,19 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return password_context.verify(plain_password, hashed_password)
+
+
+def generate_agent_api_key() -> str:
+    settings = get_settings()
+    return f"sxag_{token_urlsafe(settings.agent_api_key_bytes)}"
+
+
+def hash_agent_api_key(api_key: str) -> str:
+    return password_context.hash(api_key)
+
+
+def verify_agent_api_key(api_key: str, api_key_hash: str) -> bool:
+    return password_context.verify(api_key, api_key_hash)
 
 
 def create_token(user: User, token_type: TokenType) -> str:

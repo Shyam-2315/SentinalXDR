@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(default=15, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
     refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
+    agent_api_key_bytes: int = Field(default=32, alias="AGENT_API_KEY_BYTES")
+
 
 @lru_cache
 def get_settings() -> Settings:

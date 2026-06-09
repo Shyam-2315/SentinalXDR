@@ -1,6 +1,6 @@
 # SentinelXDR — API Contracts
 
-**Version:** 0.2.0 (Phase 2)
+**Version:** 0.3.0 (Phase 3)
 **Status:** Draft
 **Last Updated:** 2026-06-09
 **Base URL:** `https://{host}`
@@ -22,11 +22,10 @@ Tokens are obtained via the login endpoint. Access and refresh token expiries ar
 
 ### 1.2 Agent Authentication
 
-Agents authenticate using a pre-issued **Agent API Key** (long-lived, per-agent secret) combined with a signed JWT payload. The key is issued during agent registration.
+Agents authenticate heartbeat calls using a pre-issued **Agent API Key**. The plaintext key is returned only once during agent registration, and only its hash is stored.
 
 ```
-X-Agent-ID: <agent_uuid>
-X-Agent-Token: <signed_jwt>
+X-Agent-Key: <agent_api_key>
 ```
 
 ### 1.3 Error Responses (All Endpoints)
@@ -296,75 +295,147 @@ Submit a batch of telemetry events from an agent.
 
 ---
 
-### POST /agents/register
+## 4. Agent Endpoints
 
-Register a new agent with the platform. Called once on first agent installation.
+### POST /api/agents/register
 
-**Headers:** `Content-Type: application/json` (no auth required for initial registration; platform issues agent token in response)
+Register a new agent for the authenticated user's organization.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`.
 
 **Request:**
 ```json
 {
+  "name": "workstation-01",
   "hostname": "WORKSTATION-01",
-  "os": "linux",
-  "os_version": "Ubuntu 22.04.3 LTS",
-  "arch": "x86_64",
+  "os_type": "linux",
   "agent_version": "1.0.0",
-  "install_token": "install_token_pre_shared"
+  "ip_address": "10.0.0.5",
+  "tags": ["endpoint", "lab"]
 }
 ```
 
 **Response `201`:**
 ```json
 {
-  "agent_id": "agt_01HXYZ",
-  "agent_token": "eyJhbGci...",
-  "platform_endpoint": "https://sentinelxdr.local/api/v1/ingest",
-  "config": {
-    "heartbeat_interval_seconds": 30,
-    "batch_size": 100,
-    "batch_interval_ms": 1000,
-    "collection_policy": {
-      "process_events": true,
-      "network_events": true,
-      "file_events": true,
-      "registry_events": true
-    }
-  }
+  "agent": {
+    "id": "agt_01HXYZ",
+    "organization_id": "org_01HXYZ",
+    "name": "workstation-01",
+    "hostname": "WORKSTATION-01",
+    "os_type": "linux",
+    "agent_version": "1.0.0",
+    "status": "offline",
+    "last_seen_at": null,
+    "ip_address": "10.0.0.5",
+    "tags": ["endpoint", "lab"],
+    "created_at": "2026-06-09T12:00:00Z",
+    "updated_at": "2026-06-09T12:00:00Z"
+  },
+  "api_key": "sxag_..."
 }
 ```
 
 ---
 
-### POST /agents/{agent_id}/heartbeat
+### POST /api/agents/heartbeat
 
-Report agent liveness and current status.
+Report agent liveness. This endpoint does not use JWT auth.
 
-**Headers:** `X-Agent-ID`, `X-Agent-Token`
+**Headers:** `X-Agent-Key: <agent_api_key>`
 
 **Request:**
 ```json
 {
-  "status": "healthy",
-  "events_buffered": 0,
-  "cpu_percent": 1.2,
-  "memory_mb": 45.3,
-  "agent_version": "1.0.0",
-  "timestamp": "2026-06-09T12:00:00Z"
+  "agent_version": "1.0.1",
+  "ip_address": "10.0.0.5"
 }
 ```
 
 **Response `200`:**
 ```json
 {
-  "acknowledged": true,
-  "pending_commands": []
+  "status": "ok"
 }
 ```
 
 ---
 
-## 4. Alert Endpoints
+### GET /api/agents
+
+List agents in the authenticated user's organization. Disabled agents are included with `status: "disabled"`.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`, `VIEWER`.
+
+**Response `200`:**
+```json
+{
+  "agents": [
+    {
+      "id": "agt_01HXYZ",
+      "organization_id": "org_01HXYZ",
+      "name": "workstation-01",
+      "hostname": "WORKSTATION-01",
+      "os_type": "linux",
+      "agent_version": "1.0.1",
+      "status": "online",
+      "last_seen_at": "2026-06-09T12:05:00Z",
+      "ip_address": "10.0.0.5",
+      "tags": ["endpoint", "lab"],
+      "created_at": "2026-06-09T12:00:00Z",
+      "updated_at": "2026-06-09T12:05:00Z"
+    }
+  ]
+}
+```
+
+---
+
+### GET /api/agents/{agent_id}
+
+Get one agent in the authenticated user's organization. Cross-organization access returns `404`.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`, `VIEWER`.
+
+---
+
+### POST /api/agents/{agent_id}/disable
+
+Disable one agent in the authenticated user's organization. Disabled agents cannot heartbeat successfully.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`.
+
+**Response `200`:**
+```json
+{
+  "agent": {
+    "id": "agt_01HXYZ",
+    "organization_id": "org_01HXYZ",
+    "name": "workstation-01",
+    "hostname": "WORKSTATION-01",
+    "os_type": "linux",
+    "agent_version": "1.0.1",
+    "status": "disabled",
+    "last_seen_at": "2026-06-09T12:05:00Z",
+    "ip_address": "10.0.0.5",
+    "tags": ["endpoint", "lab"],
+    "created_at": "2026-06-09T12:00:00Z",
+    "updated_at": "2026-06-09T12:06:00Z"
+  }
+}
+```
+
+---
+
+## 5. Alert Endpoints
 
 ### GET /alerts
 
@@ -502,7 +573,7 @@ Update alert status or assignment.
 
 ---
 
-## 5. Asset Endpoints
+## 6. Asset Endpoints
 
 ### GET /assets
 
@@ -568,7 +639,7 @@ Remove network isolation from an endpoint.
 
 ---
 
-## 6. Rules Endpoints
+## 7. Rules Endpoints
 
 ### GET /rules
 
@@ -613,7 +684,7 @@ Delete a detection rule.
 
 ---
 
-## 7. WebSocket — Real-Time Alert Stream
+## 8. WebSocket — Real-Time Alert Stream
 
 ### WS /ws/alerts
 
@@ -659,7 +730,7 @@ Establishes a real-time connection for alert notifications.
 
 ---
 
-## 8. System / Health Endpoints
+## 9. System / Health Endpoints
 
 ### GET /health/live
 
@@ -699,7 +770,7 @@ Redis dependency health. Returns `503` when unavailable.
 
 ---
 
-## 9. Common Event Types Reference
+## 10. Common Event Types Reference
 
 | `event_type` | Description | Key Fields |
 |---|---|---|

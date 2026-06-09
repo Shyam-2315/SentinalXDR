@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
     agent_api_key_bytes: int = Field(default=32, alias="AGENT_API_KEY_BYTES")
+    event_ingest_batch_size_limit: int = Field(
+        default=100,
+        alias="EVENT_INGEST_BATCH_SIZE_LIMIT",
+    )
 
 
 @lru_cache

@@ -44,6 +44,12 @@ Agent endpoints:
 - `GET /api/agents/{agent_id}`
 - `POST /api/agents/{agent_id}/disable`
 
+Event endpoints:
+
+- `POST /api/events/ingest`
+- `GET /api/events`
+- `GET /api/events/{event_id}`
+
 Register and login return a frontend-friendly payload:
 
 ```json
@@ -99,6 +105,36 @@ curl -X POST http://localhost:8000/api/agents/heartbeat \
   -H "X-Agent-Key: sxag_..." \
   -H "Content-Type: application/json" \
   -d '{"agent_version":"1.0.1","ip_address":"10.0.0.5"}'
+```
+
+Event ingestion also uses `X-Agent-Key` only. The backend assigns
+`organization_id`, `agent_id`, and `received_at` server-side:
+
+```bash
+curl -X POST http://localhost:8000/api/events/ingest \
+  -H "X-Agent-Key: sxag_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "events": [
+      {
+        "event_type": "process_start",
+        "severity": "info",
+        "source": "linux",
+        "title": "Process started",
+        "description": "bash started",
+        "raw_event": {"pid": 1234},
+        "normalized_fields": {"process.name": "bash"},
+        "tags": ["process"]
+      }
+    ]
+  }'
+```
+
+Event reads use bearer auth and are organization-scoped:
+
+```bash
+curl "http://localhost:8000/api/events?severity=info&source=linux&limit=50" \
+  -H "Authorization: Bearer <access_token>"
 ```
 
 OpenAPI docs are available at `http://localhost:8000/api/v1/docs`.

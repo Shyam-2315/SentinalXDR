@@ -1,6 +1,6 @@
 # SentinelXDR — API Contracts
 
-**Version:** 0.3.0 (Phase 3)
+**Version:** 0.4.0 (Phase 4)
 **Status:** Draft
 **Last Updated:** 2026-06-09
 **Base URL:** `https://{host}`
@@ -435,7 +435,118 @@ Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`.
 
 ---
 
-## 5. Alert Endpoints
+## 5. Event Endpoints
+
+### POST /api/events/ingest
+
+Secure event batch ingestion. This endpoint uses agent API key authentication only and does not accept bearer JWTs. The backend assigns `organization_id`, `agent_id`, and `received_at` server-side. If `timestamp` is omitted, the backend uses the current UTC time.
+
+**Headers:** `X-Agent-Key: <agent_api_key>`
+
+**Request:**
+```json
+{
+  "events": [
+    {
+      "event_type": "process_start",
+      "severity": "info",
+      "source": "linux",
+      "title": "Process started",
+      "description": "bash started",
+      "raw_event": {
+        "pid": 1234,
+        "process_name": "bash"
+      },
+      "normalized_fields": {
+        "process.name": "bash"
+      },
+      "tags": ["process"]
+    }
+  ]
+}
+```
+
+**Response `201`:**
+```json
+{
+  "accepted": 1,
+  "events": [
+    {
+      "id": "evt_01HXYZ",
+      "organization_id": "org_01HXYZ",
+      "agent_id": "agt_01HXYZ",
+      "event_type": "process_start",
+      "severity": "info",
+      "source": "linux",
+      "title": "Process started",
+      "description": "bash started",
+      "raw_event": {
+        "pid": 1234,
+        "process_name": "bash"
+      },
+      "normalized_fields": {
+        "process.name": "bash"
+      },
+      "tags": ["process"],
+      "timestamp": "2026-06-09T12:00:00Z",
+      "received_at": "2026-06-09T12:00:01Z"
+    }
+  ]
+}
+```
+
+**Response `401`:** Missing or invalid `X-Agent-Key`.
+
+**Response `403`:** Agent is disabled.
+
+**Response `413`:** Batch size exceeds `EVENT_INGEST_BATCH_SIZE_LIMIT`.
+
+**Response `422`:** Invalid event payload, including non-object `raw_event` or `normalized_fields`.
+
+---
+
+### GET /api/events
+
+List events in the authenticated user's organization.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`, `VIEWER`.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `severity` | string | `low`, `medium`, `high`, `critical`, `info` |
+| `source` | string | `windows`, `linux`, `network`, `cloud`, `identity`, `web`, `agent` |
+| `event_type` | string | Exact event type match |
+| `agent_id` | string | Filter by agent |
+| `limit` | integer | Default `100`, max `500` |
+| `skip` | integer | Default `0` |
+
+**Response `200`:**
+```json
+{
+  "events": [],
+  "count": 0,
+  "limit": 100,
+  "skip": 0
+}
+```
+
+---
+
+### GET /api/events/{event_id}
+
+Get one event in the authenticated user's organization. Cross-organization access returns `404`.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`, `VIEWER`.
+
+---
+
+## 6. Alert Endpoints
 
 ### GET /alerts
 
@@ -573,7 +684,7 @@ Update alert status or assignment.
 
 ---
 
-## 6. Asset Endpoints
+## 7. Asset Endpoints
 
 ### GET /assets
 
@@ -639,7 +750,7 @@ Remove network isolation from an endpoint.
 
 ---
 
-## 7. Rules Endpoints
+## 8. Rules Endpoints
 
 ### GET /rules
 
@@ -684,7 +795,7 @@ Delete a detection rule.
 
 ---
 
-## 8. WebSocket — Real-Time Alert Stream
+## 9. WebSocket — Real-Time Alert Stream
 
 ### WS /ws/alerts
 
@@ -730,7 +841,7 @@ Establishes a real-time connection for alert notifications.
 
 ---
 
-## 9. System / Health Endpoints
+## 10. System / Health Endpoints
 
 ### GET /health/live
 
@@ -770,7 +881,7 @@ Redis dependency health. Returns `503` when unavailable.
 
 ---
 
-## 10. Common Event Types Reference
+## 11. Common Event Types Reference
 
 | `event_type` | Description | Key Fields |
 |---|---|---|

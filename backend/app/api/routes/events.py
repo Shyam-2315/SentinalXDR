@@ -2,13 +2,22 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
-from app.api.dependencies import get_agent_repository, get_event_repository, require_roles
+from app.api.dependencies import (
+    get_agent_repository,
+    get_alert_repository,
+    get_detection_result_repository,
+    get_detection_rule_repository,
+    get_event_repository,
+    require_roles,
+)
 from app.core.config import get_settings
 from app.models.agent import AgentStatus
 from app.models.auth import Role
 from app.models.event import Event, EventSeverity, EventSource
 from app.models.user import User
 from app.repositories.agents import AgentRepository
+from app.repositories.alerts import AlertRepository
+from app.repositories.detections import DetectionResultRepository, DetectionRuleRepository
 from app.repositories.events import EventRepository
 from app.schemas.events import (
     EventIngestRequest,
@@ -16,6 +25,7 @@ from app.schemas.events import (
     EventListResponse,
     EventRead,
 )
+from app.services.detection_engine import DetectionEngine
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -45,6 +55,12 @@ async def ingest_events(
     payload: EventIngestRequest,
     agents: Annotated[AgentRepository, Depends(get_agent_repository)],
     events: Annotated[EventRepository, Depends(get_event_repository)],
+    detection_rules: Annotated[DetectionRuleRepository, Depends(get_detection_rule_repository)],
+    detection_results: Annotated[
+        DetectionResultRepository,
+        Depends(get_detection_result_repository),
+    ],
+    alerts: Annotated[AlertRepository, Depends(get_alert_repository)],
     agent_key: Annotated[str | None, Header(alias="X-Agent-Key")] = None,
 ) -> EventIngestResponse:
     settings = get_settings()
@@ -82,8 +98,15 @@ async def ingest_events(
         ip_address=None,
         agent_version=None,
     )
+    created_results, created_alerts = await DetectionEngine(
+        detection_rules,
+        detection_results,
+        alerts,
+    ).evaluate_events(stored_events)
     return EventIngestResponse(
         accepted=len(stored_events),
+        detections_created=len(created_results),
+        alerts_created=len(created_alerts),
         events=[to_event_read(event) for event in stored_events],
     )
 

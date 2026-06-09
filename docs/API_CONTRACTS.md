@@ -1,6 +1,6 @@
 # SentinelXDR — API Contracts
 
-**Version:** 0.4.0 (Phase 4)
+**Version:** 0.5.0 (Phase 5)
 **Status:** Draft
 **Last Updated:** 2026-06-09
 **Base URL:** `https://{host}`
@@ -470,6 +470,8 @@ Secure event batch ingestion. This endpoint uses agent API key authentication on
 ```json
 {
   "accepted": 1,
+  "detections_created": 0,
+  "alerts_created": 0,
   "events": [
     {
       "id": "evt_01HXYZ",
@@ -546,145 +548,147 @@ Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`, `VIEWER`.
 
 ---
 
-## 6. Alert Endpoints
+## 6. Detection Endpoints
 
-### GET /alerts
+### GET /api/detections/rules
 
-List alerts with filtering and pagination.
+List built-in and organization custom detection rules.
 
-**Headers:** `Authorization: Bearer <token>`
+**Headers:** `Authorization: Bearer <access_token>`
 
-**Query Parameters:**
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`, `VIEWER`.
 
-| Parameter | Type | Description |
-|---|---|---|
-| `severity` | string | Filter: `critical`, `high`, `medium`, `low`, `info` |
-| `status` | string | Filter: `new`, `in_progress`, `resolved`, `closed` |
-| `domain` | string | Filter: `endpoint`, `network`, `identity`, `web`, `cloud`, `data` |
-| `asset_id` | string | Filter by related asset |
-| `from` | ISO8601 | Start of time range |
-| `to` | ISO8601 | End of time range |
-| `page` | integer | Page number (default: 1) |
-| `limit` | integer | Items per page (default: 25, max: 100) |
-| `sort` | string | `created_at:desc` (default), `severity:desc` |
+Built-in rules include:
 
-**Response `200`:**
-```json
-{
-  "data": [
-    {
-      "id": "alr_01HXYZ",
-      "title": "Reverse Shell Detected",
-      "description": "Process 'bash' established outbound TCP connection to suspicious IP on port 4444",
-      "severity": "critical",
-      "status": "new",
-      "domain": "endpoint",
-      "rule_id": "rule_reverse_shell_001",
-      "mitre": {
-        "tactic": "Command and Control",
-        "tactic_id": "TA0011",
-        "technique": "Non-Standard Port",
-        "technique_id": "T1571"
-      },
-      "asset": {
-        "id": "ast_01HABC",
-        "hostname": "WORKSTATION-01",
-        "ip": "192.168.1.10"
-      },
-      "event_count": 3,
-      "first_seen": "2026-06-09T11:59:58Z",
-      "last_seen": "2026-06-09T12:00:01Z",
-      "created_at": "2026-06-09T12:00:02Z",
-      "assigned_to": null
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 25,
-    "total": 1,
-    "pages": 1
-  }
-}
-```
+- Suspicious PowerShell Encoded Command (`T1059.001`)
+- Possible Mimikatz Execution (`T1003`)
+- SSH Brute Force Signal (`T1110`)
+- Nmap Scan Detected (`T1595`)
+- Linux Cron Persistence (`T1053.003`)
+- Reverse Shell Command (`T1059`)
+- Suspicious Base64 Command (`T1027`)
+- Large Outbound Transfer (`T1041`)
+- Multiple Failed Windows Logons (`T1110`)
+- Possible VM-Based Attacker Fingerprint (`T1595`)
 
 ---
 
-### GET /alerts/{alert_id}
+### POST /api/detections/rules
 
-Retrieve full alert detail including all related events.
+Create an organization-scoped custom rule.
 
-**Response `200`:**
-```json
-{
-  "id": "alr_01HXYZ",
-  "title": "Reverse Shell Detected",
-  "description": "...",
-  "severity": "critical",
-  "status": "new",
-  "domain": "endpoint",
-  "rule_id": "rule_reverse_shell_001",
-  "rule_name": "Reverse Shell via Bash",
-  "mitre": {
-    "tactic": "Command and Control",
-    "tactic_id": "TA0011",
-    "technique": "Non-Standard Port",
-    "technique_id": "T1571"
-  },
-  "asset": {
-    "id": "ast_01HABC",
-    "hostname": "WORKSTATION-01",
-    "ip": "192.168.1.10",
-    "os": "linux",
-    "risk_score": 87
-  },
-  "events": [
-    {
-      "event_id": "evt_uuid_v4",
-      "event_type": "process_create",
-      "timestamp": "2026-06-09T11:59:58Z",
-      "data": { "..." : "..." }
-    }
-  ],
-  "timeline": [
-    {
-      "timestamp": "2026-06-09T11:59:58Z",
-      "description": "bash spawned by sshd (PID 1234)",
-      "event_type": "process_create"
-    },
-    {
-      "timestamp": "2026-06-09T12:00:00Z",
-      "description": "Outbound TCP to 203.0.113.45:4444",
-      "event_type": "network_connection"
-    }
-  ],
-  "notes": [],
-  "first_seen": "2026-06-09T11:59:58Z",
-  "last_seen": "2026-06-09T12:00:01Z",
-  "created_at": "2026-06-09T12:00:02Z",
-  "assigned_to": null
-}
-```
-
----
-
-### PATCH /alerts/{alert_id}
-
-Update alert status or assignment.
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`.
 
 **Request:**
 ```json
 {
-  "status": "in_progress",
-  "assigned_to": "usr_01HXYZ",
-  "note": "Investigating — confirmed malicious C2 connection"
+  "name": "Custom Curl Download",
+  "description": "Curl download command observed",
+  "enabled": true,
+  "severity": "medium",
+  "source": "linux",
+  "event_type": "process_start",
+  "conditions": {
+    "all": [
+      {
+        "field": "normalized_fields.command_line",
+        "operator": "contains",
+        "value": "curl"
+      }
+    ]
+  },
+  "mitre_tactics": ["Command and Control"],
+  "mitre_techniques": ["T1105"],
+  "tags": ["custom"]
 }
 ```
 
-**Response `200`:** Updated alert object.
+Supported operators: `equals`, `contains`, `regex`, `in`, `gt`, `gte`, `lt`, `lte`.
 
 ---
 
-## 7. Asset Endpoints
+### GET /api/detections/rules/{rule_id}
+
+Read one built-in or organization custom rule. Cross-organization custom rule access returns `404`.
+
+### PATCH /api/detections/rules/{rule_id}
+
+Update an organization custom rule. Built-in rules are read-only.
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`.
+
+### POST /api/detections/rules/{rule_id}/disable
+
+Disable an organization custom rule. Built-in rules are read-only.
+
+### POST /api/detections/rules/{rule_id}/enable
+
+Enable an organization custom rule. Built-in rules are read-only.
+
+---
+
+### GET /api/detections/results
+
+List detection results in the authenticated user's organization.
+
+**Response `200`:**
+```json
+{
+  "results": [],
+  "count": 0,
+  "limit": 100,
+  "skip": 0
+}
+```
+
+### GET /api/detections/results/{result_id}
+
+Read one detection result. Cross-organization access returns `404`.
+
+---
+
+## 7. Alert Endpoints
+
+### GET /api/alerts
+
+List alerts in the authenticated user's organization.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`, `VIEWER`.
+
+**Response `200`:**
+```json
+{
+  "alerts": [],
+  "count": 0,
+  "limit": 100,
+  "skip": 0
+}
+```
+
+### GET /api/alerts/{alert_id}
+
+Read one alert. Cross-organization access returns `404`.
+
+### PATCH /api/alerts/{alert_id}/status
+
+Update alert status.
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`.
+
+**Request:**
+```json
+{
+  "status": "investigating"
+}
+```
+
+Supported statuses: `open`, `investigating`, `resolved`, `false_positive`.
+
+---
+
+## 8. Asset Endpoints
 
 ### GET /assets
 
@@ -750,7 +754,7 @@ Remove network isolation from an endpoint.
 
 ---
 
-## 8. Rules Endpoints
+## 9. Rules Endpoints
 
 ### GET /rules
 
@@ -795,7 +799,7 @@ Delete a detection rule.
 
 ---
 
-## 9. WebSocket — Real-Time Alert Stream
+## 10. WebSocket — Real-Time Alert Stream
 
 ### WS /ws/alerts
 
@@ -841,7 +845,7 @@ Establishes a real-time connection for alert notifications.
 
 ---
 
-## 10. System / Health Endpoints
+## 11. System / Health Endpoints
 
 ### GET /health/live
 
@@ -881,7 +885,7 @@ Redis dependency health. Returns `503` when unavailable.
 
 ---
 
-## 11. Common Event Types Reference
+## 12. Common Event Types Reference
 
 | `event_type` | Description | Key Fields |
 |---|---|---|

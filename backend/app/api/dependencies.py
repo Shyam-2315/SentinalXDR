@@ -9,6 +9,8 @@ from app.db.mongodb import get_database
 from app.models.auth import Role, UserStatus
 from app.models.user import User
 from app.repositories.agents import AgentRepository
+from app.repositories.alerts import AlertRepository
+from app.repositories.detections import DetectionResultRepository, DetectionRuleRepository
 from app.repositories.events import EventRepository
 from app.repositories.organizations import OrganizationRepository
 from app.repositories.users import UserRepository
@@ -30,6 +32,18 @@ def get_agent_repository() -> AgentRepository:
 
 def get_event_repository() -> EventRepository:
     return EventRepository(get_database())
+
+
+def get_detection_rule_repository() -> DetectionRuleRepository:
+    return DetectionRuleRepository(get_database())
+
+
+def get_detection_result_repository() -> DetectionResultRepository:
+    return DetectionResultRepository(get_database())
+
+
+def get_alert_repository() -> AlertRepository:
+    return AlertRepository(get_database())
 
 
 async def get_current_user(

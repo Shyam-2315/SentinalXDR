@@ -50,6 +50,20 @@ Event endpoints:
 - `GET /api/events`
 - `GET /api/events/{event_id}`
 
+Detection and alert endpoints:
+
+- `GET /api/detections/rules`
+- `GET /api/detections/rules/{rule_id}`
+- `POST /api/detections/rules`
+- `PATCH /api/detections/rules/{rule_id}`
+- `POST /api/detections/rules/{rule_id}/disable`
+- `POST /api/detections/rules/{rule_id}/enable`
+- `GET /api/detections/results`
+- `GET /api/detections/results/{result_id}`
+- `GET /api/alerts`
+- `GET /api/alerts/{alert_id}`
+- `PATCH /api/alerts/{alert_id}/status`
+
 Register and login return a frontend-friendly payload:
 
 ```json
@@ -108,7 +122,8 @@ curl -X POST http://localhost:8000/api/agents/heartbeat \
 ```
 
 Event ingestion also uses `X-Agent-Key` only. The backend assigns
-`organization_id`, `agent_id`, and `received_at` server-side:
+`organization_id`, `agent_id`, and `received_at` server-side, then evaluates
+enabled built-in and organization rules:
 
 ```bash
 curl -X POST http://localhost:8000/api/events/ingest \
@@ -135,6 +150,32 @@ Event reads use bearer auth and are organization-scoped:
 ```bash
 curl "http://localhost:8000/api/events?severity=info&source=linux&limit=50" \
   -H "Authorization: Bearer <access_token>"
+```
+
+Detection rules use safe AND-based conditions only. Supported operators are
+`equals`, `contains`, `regex`, `in`, `gt`, `gte`, `lt`, and `lte`.
+
+```json
+{
+  "name": "Custom Curl Download",
+  "description": "Curl download command observed",
+  "enabled": true,
+  "severity": "medium",
+  "source": "linux",
+  "event_type": "process_start",
+  "conditions": {
+    "all": [
+      {
+        "field": "normalized_fields.command_line",
+        "operator": "contains",
+        "value": "curl"
+      }
+    ]
+  },
+  "mitre_tactics": ["Command and Control"],
+  "mitre_techniques": ["T1105"],
+  "tags": ["custom"]
+}
 ```
 
 OpenAPI docs are available at `http://localhost:8000/api/v1/docs`.

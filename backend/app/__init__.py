@@ -1,0 +1,1 @@
+"""SentinelXDR backend application package."""

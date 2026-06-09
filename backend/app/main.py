@@ -6,6 +6,8 @@ from fastapi import FastAPI
 from app.api.router import api_router
 from app.api.routes.agents import router as agents_router
 from app.api.routes.alerts import router as alerts_router
+from app.api.routes.attack_chains import incident_router as incident_attack_chain_router
+from app.api.routes.attack_chains import router as attack_chains_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.detections import router as detections_router
 from app.api.routes.events import router as events_router
@@ -45,6 +47,8 @@ def create_app() -> FastAPI:
     app.include_router(detections_router)
     app.include_router(alerts_router)
     app.include_router(incidents_router)
+    app.include_router(attack_chains_router)
+    app.include_router(incident_attack_chain_router)
     app.include_router(health_router)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app

@@ -1,6 +1,6 @@
 # SentinelXDR — API Contracts
 
-**Version:** 0.6.0 (Phase 6)
+**Version:** 0.7.0 (Phase 7)
 **Status:** Draft
 **Last Updated:** 2026-06-09
 **Base URL:** `https://{host}`
@@ -785,7 +785,121 @@ Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`.
 
 ---
 
-## 9. Asset Endpoints
+## 9. Attack Chain Endpoints
+
+Attack chains are generated automatically after incidents are created or updated. Each incident has one organization-scoped attack chain containing a timeline, graph, deterministic risk/confidence scores, a readable story, and recommended actions. No external AI or API calls are used.
+
+### GET /api/attack-chains
+
+List attack chains in the authenticated user's organization.
+
+**Headers:** `Authorization: Bearer <access_token>`
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`, `VIEWER`.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `status` | string | `active`, `contained`, `resolved` |
+| `severity` | string | `info`, `low`, `medium`, `high`, `critical` |
+| `agent_id` | string | Filter by linked agent |
+| `mitre_technique` | string | Filter by linked MITRE technique |
+| `min_risk_score` | number | Risk score lower bound, 0-100 |
+| `limit` | integer | Default `100`, max `500` |
+| `skip` | integer | Default `0` |
+
+**Response `200`:**
+```json
+{
+  "attack_chains": [
+    {
+      "id": "chain_01HXYZ",
+      "organization_id": "org_01HXYZ",
+      "incident_id": "inc_01HXYZ",
+      "agent_ids": ["agt_01HXYZ"],
+      "alert_ids": ["alr_01HXYZ"],
+      "detection_result_ids": ["det_01HXYZ"],
+      "event_ids": ["evt_01HXYZ"],
+      "title": "Attack chain: Suspicious PowerShell Encoded Command",
+      "summary": "PowerShell command line includes encoded-command usage.",
+      "severity": "high",
+      "risk_score": 78,
+      "confidence_score": 56,
+      "kill_chain_phases": ["execution"],
+      "mitre_tactics": ["Execution"],
+      "mitre_techniques": ["T1059.001"],
+      "timeline": [
+        {
+          "timestamp": "2026-06-09T12:00:00Z",
+          "type": "event",
+          "title": "PowerShell started",
+          "description": "PowerShell started",
+          "severity": "info",
+          "mitre_tactic": null,
+          "mitre_technique": null,
+          "reference_id": "evt_01HXYZ",
+          "source": "windows"
+        }
+      ],
+      "graph": {
+        "nodes": [
+          {
+            "id": "agt_01HXYZ",
+            "label": "win-lab-01",
+            "type": "agent",
+            "severity": null
+          }
+        ],
+        "edges": []
+      },
+      "story": "SentinelXDR observed suspicious activity on host win-lab-01...",
+      "recommended_actions": ["isolate endpoint", "collect evidence", "reset credentials"],
+      "status": "active",
+      "first_seen_at": "2026-06-09T12:00:00Z",
+      "last_seen_at": "2026-06-09T12:00:00Z",
+      "created_at": "2026-06-09T12:00:01Z",
+      "updated_at": "2026-06-09T12:00:01Z"
+    }
+  ],
+  "count": 1,
+  "limit": 100,
+  "skip": 0
+}
+```
+
+---
+
+### GET /api/attack-chains/{chain_id}
+
+Read one attack chain. Cross-organization access returns `404`.
+
+---
+
+### GET /api/incidents/{incident_id}/attack-chain
+
+Read the attack chain for one incident. Cross-organization access returns `404`.
+
+---
+
+### PATCH /api/attack-chains/{chain_id}/status
+
+Update attack chain status.
+
+Allowed roles: `SUPER_ADMIN`, `ORG_ADMIN`, `ANALYST`.
+
+**Request:**
+```json
+{
+  "status": "contained"
+}
+```
+
+Supported statuses: `active`, `contained`, `resolved`.
+
+---
+
+## 10. Asset Endpoints
 
 ### GET /assets
 
@@ -851,7 +965,7 @@ Remove network isolation from an endpoint.
 
 ---
 
-## 10. Rules Endpoints
+## 11. Rules Endpoints
 
 ### GET /rules
 
@@ -896,7 +1010,7 @@ Delete a detection rule.
 
 ---
 
-## 11. WebSocket — Real-Time Alert Stream
+## 12. WebSocket — Real-Time Alert Stream
 
 ### WS /ws/alerts
 
@@ -942,7 +1056,7 @@ Establishes a real-time connection for alert notifications.
 
 ---
 
-## 12. System / Health Endpoints
+## 13. System / Health Endpoints
 
 ### GET /health/live
 
@@ -982,7 +1096,7 @@ Redis dependency health. Returns `503` when unavailable.
 
 ---
 
-## 13. Common Event Types Reference
+## 14. Common Event Types Reference
 
 | `event_type` | Description | Key Fields |
 |---|---|---|

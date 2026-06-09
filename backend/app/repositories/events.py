@@ -83,3 +83,14 @@ class EventRepository:
         if document is None:
             return None
         return Event.model_validate(document)
+
+    async def find_many_by_ids_for_organization(
+        self,
+        *,
+        event_ids: list[str],
+        organization_id: str,
+    ) -> list[Event]:
+        cursor = self.collection.find(
+            {"id": {"$in": event_ids}, "organization_id": organization_id},
+        )
+        return [Event.model_validate(document) async for document in cursor]

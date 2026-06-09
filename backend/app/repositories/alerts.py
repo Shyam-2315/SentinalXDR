@@ -64,6 +64,17 @@ class AlertRepository:
             return None
         return Alert.model_validate(document)
 
+    async def find_many_by_ids_for_organization(
+        self,
+        *,
+        alert_ids: list[str],
+        organization_id: str,
+    ) -> list[Alert]:
+        cursor = self.collection.find(
+            {"id": {"$in": alert_ids}, "organization_id": organization_id},
+        )
+        return [Alert.model_validate(document) async for document in cursor]
+
     async def update_status(
         self,
         *,

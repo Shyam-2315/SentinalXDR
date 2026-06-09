@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from app.api.dependencies import (
     get_agent_repository,
     get_alert_repository,
+    get_attack_chain_repository,
     get_detection_result_repository,
     get_detection_rule_repository,
     get_event_repository,
@@ -18,6 +19,7 @@ from app.models.event import Event, EventSeverity, EventSource
 from app.models.user import User
 from app.repositories.agents import AgentRepository
 from app.repositories.alerts import AlertRepository
+from app.repositories.attack_chains import AttackChainRepository
 from app.repositories.detections import DetectionResultRepository, DetectionRuleRepository
 from app.repositories.events import EventRepository
 from app.repositories.incidents import IncidentRepository
@@ -27,6 +29,7 @@ from app.schemas.events import (
     EventListResponse,
     EventRead,
 )
+from app.services.attack_chain_engine import AttackChainEngine
 from app.services.detection_engine import DetectionEngine
 from app.services.incident_engine import IncidentEngine
 
@@ -65,6 +68,7 @@ async def ingest_events(
     ],
     alerts: Annotated[AlertRepository, Depends(get_alert_repository)],
     incidents: Annotated[IncidentRepository, Depends(get_incident_repository)],
+    attack_chains: Annotated[AttackChainRepository, Depends(get_attack_chain_repository)],
     agent_key: Annotated[str | None, Header(alias="X-Agent-Key")] = None,
 ) -> EventIngestResponse:
     settings = get_settings()
@@ -111,6 +115,13 @@ async def ingest_events(
         incidents,
         settings.incident_correlation_window_minutes,
     ).process_alerts(created_alerts)
+    await AttackChainEngine(
+        attack_chains,
+        events,
+        detection_results,
+        alerts,
+        agents,
+    ).process_incidents([*created_incidents, *updated_incidents])
     return EventIngestResponse(
         accepted=len(stored_events),
         detections_created=len(created_results),

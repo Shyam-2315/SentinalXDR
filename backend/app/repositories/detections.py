@@ -383,3 +383,14 @@ class DetectionResultRepository:
         if document is None:
             return None
         return DetectionResult.model_validate(document)
+
+    async def find_many_by_ids_for_organization(
+        self,
+        *,
+        result_ids: list[str],
+        organization_id: str,
+    ) -> list[DetectionResult]:
+        cursor = self.collection.find(
+            {"id": {"$in": result_ids}, "organization_id": organization_id},
+        )
+        return [DetectionResult.model_validate(document) async for document in cursor]

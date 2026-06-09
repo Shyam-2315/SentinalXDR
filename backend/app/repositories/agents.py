@@ -59,6 +59,17 @@ class AgentRepository:
             return None
         return Agent.model_validate(document)
 
+    async def find_many_by_ids_for_organization(
+        self,
+        *,
+        agent_ids: list[str],
+        organization_id: str,
+    ) -> list[Agent]:
+        cursor = self.collection.find(
+            {"id": {"$in": agent_ids}, "organization_id": organization_id},
+        )
+        return [Agent.model_validate(document) async for document in cursor]
+
     async def find_by_api_key(self, api_key: str) -> Agent | None:
         async for document in self.collection.find({}):
             if verify_agent_api_key(api_key, document["api_key_hash"]):

@@ -72,6 +72,13 @@ Incident endpoints:
 - `PATCH /api/incidents/{incident_id}/assign`
 - `PATCH /api/incidents/{incident_id}/summary`
 
+Attack chain endpoints:
+
+- `GET /api/attack-chains`
+- `GET /api/attack-chains/{chain_id}`
+- `GET /api/incidents/{incident_id}/attack-chain`
+- `PATCH /api/attack-chains/{chain_id}/status`
+
 Register and login return a frontend-friendly payload:
 
 ```json
@@ -192,6 +199,12 @@ Incidents are organization-scoped and dashboard-friendly. `GET /api/incidents`
 supports `status`, `severity`, `agent_id`, `mitre_technique`, `limit`, and
 `skip`. Analysts and admins can update status, assignment, and summary; viewers
 can list and read only.
+
+Attack chains are generated automatically from incidents and linked alerts,
+detections, and events. They include deterministic risk and confidence scores,
+kill-chain phases, a timeline, a graph for visualization, a readable threat
+story, and recommended actions. `GET /api/attack-chains` supports `status`,
+`severity`, `agent_id`, `mitre_technique`, `min_risk_score`, `limit`, and `skip`.
 
 OpenAPI docs are available at `http://localhost:8000/api/v1/docs`.
 

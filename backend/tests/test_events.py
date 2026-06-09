@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.api.dependencies import (
     get_agent_repository,
     get_alert_repository,
+    get_attack_chain_repository,
     get_detection_result_repository,
     get_detection_rule_repository,
     get_event_repository,
@@ -26,6 +27,7 @@ from app.core.security import (
 from app.main import app
 from app.models.agent import Agent, AgentStatus, OSType
 from app.models.alert import Alert, AlertStatus
+from app.models.attack_chain import AttackChain, AttackChainStatus
 from app.models.auth import Role, UserStatus
 from app.models.detection import DetectionResult, DetectionRule
 from app.models.event import Event, EventSeverity, EventSource
@@ -47,6 +49,7 @@ class EventTestStore:
         self.results: dict[str, DetectionResult] = {}
         self.alerts: dict[str, Alert] = {}
         self.incidents: dict[str, Incident] = {}
+        self.attack_chains: dict[str, AttackChain] = {}
 
 
 class FakeOrganizationRepository:
@@ -150,6 +153,18 @@ class FakeAgentRepository:
         if agent is None or agent.organization_id != organization_id:
             return None
         return agent
+
+    async def find_many_by_ids_for_organization(
+        self,
+        *,
+        agent_ids: list[str],
+        organization_id: str,
+    ) -> list[Agent]:
+        return [
+            agent
+            for agent in self.store.agents.values()
+            if agent.id in agent_ids and agent.organization_id == organization_id
+        ]
 
     async def find_by_api_key(self, api_key: str) -> Agent | None:
         return next(
@@ -264,6 +279,18 @@ class FakeEventRepository:
         if event is None or event.organization_id != organization_id:
             return None
         return event
+
+    async def find_many_by_ids_for_organization(
+        self,
+        *,
+        event_ids: list[str],
+        organization_id: str,
+    ) -> list[Event]:
+        return [
+            event
+            for event in self.store.events.values()
+            if event.id in event_ids and event.organization_id == organization_id
+        ]
 
 
 class FakeDetectionRuleRepository:
@@ -400,6 +427,18 @@ class FakeDetectionResultRepository:
             return None
         return result
 
+    async def find_many_by_ids_for_organization(
+        self,
+        *,
+        result_ids: list[str],
+        organization_id: str,
+    ) -> list[DetectionResult]:
+        return [
+            result
+            for result in self.store.results.values()
+            if result.id in result_ids and result.organization_id == organization_id
+        ]
+
 
 class FakeAlertRepository:
     def __init__(self, store: EventTestStore) -> None:
@@ -455,6 +494,18 @@ class FakeAlertRepository:
         if alert is None or alert.organization_id != organization_id:
             return None
         return alert
+
+    async def find_many_by_ids_for_organization(
+        self,
+        *,
+        alert_ids: list[str],
+        organization_id: str,
+    ) -> list[Alert]:
+        return [
+            alert
+            for alert in self.store.alerts.values()
+            if alert.id in alert_ids and alert.organization_id == organization_id
+        ]
 
     async def update_status(
         self,
@@ -639,6 +690,98 @@ class FakeIncidentRepository:
         return updated
 
 
+class FakeAttackChainRepository:
+    def __init__(self, store: EventTestStore) -> None:
+        self.store = store
+
+    async def upsert_for_incident(self, chain: AttackChain) -> AttackChain:
+        existing = await self.find_by_incident_for_organization(
+            incident_id=chain.incident_id,
+            organization_id=chain.organization_id,
+        )
+        if existing is None:
+            self.store.attack_chains[chain.id] = chain
+            return chain
+        updated = chain.model_copy(
+            update={
+                "id": existing.id,
+                "status": existing.status,
+                "created_at": existing.created_at,
+                "updated_at": datetime.now(UTC),
+            },
+        )
+        self.store.attack_chains[existing.id] = updated
+        return updated
+
+    async def list_by_organization(
+        self,
+        *,
+        organization_id: str,
+        status: AttackChainStatus | None = None,
+        severity: EventSeverity | None = None,
+        agent_id: str | None = None,
+        mitre_technique: str | None = None,
+        min_risk_score: float | None = None,
+        limit: int = 100,
+        skip: int = 0,
+    ) -> list[AttackChain]:
+        chains = [
+            chain
+            for chain in self.store.attack_chains.values()
+            if chain.organization_id == organization_id
+            and (status is None or chain.status == status)
+            and (severity is None or chain.severity == severity)
+            and (agent_id is None or agent_id in chain.agent_ids)
+            and (mitre_technique is None or mitre_technique in chain.mitre_techniques)
+            and (min_risk_score is None or chain.risk_score >= min_risk_score)
+        ]
+        chains.sort(key=lambda chain: chain.updated_at, reverse=True)
+        return chains[skip : skip + limit]
+
+    async def find_by_id_for_organization(
+        self,
+        *,
+        chain_id: str,
+        organization_id: str,
+    ) -> AttackChain | None:
+        chain = self.store.attack_chains.get(chain_id)
+        if chain is None or chain.organization_id != organization_id:
+            return None
+        return chain
+
+    async def find_by_incident_for_organization(
+        self,
+        *,
+        incident_id: str,
+        organization_id: str,
+    ) -> AttackChain | None:
+        return next(
+            (
+                chain
+                for chain in self.store.attack_chains.values()
+                if chain.incident_id == incident_id and chain.organization_id == organization_id
+            ),
+            None,
+        )
+
+    async def update_status(
+        self,
+        *,
+        chain_id: str,
+        organization_id: str,
+        status: AttackChainStatus,
+    ) -> AttackChain | None:
+        chain = await self.find_by_id_for_organization(
+            chain_id=chain_id,
+            organization_id=organization_id,
+        )
+        if chain is None:
+            return None
+        updated = chain.model_copy(update={"status": status, "updated_at": datetime.now(UTC)})
+        self.store.attack_chains[chain.id] = updated
+        return updated
+
+
 @pytest.fixture(autouse=True)
 def clear_settings_cache() -> Iterator[None]:
     get_settings.cache_clear()
@@ -667,6 +810,9 @@ def client(store: EventTestStore) -> Iterator[TestClient]:
     )
     app.dependency_overrides[get_alert_repository] = lambda: FakeAlertRepository(store)
     app.dependency_overrides[get_incident_repository] = lambda: FakeIncidentRepository(store)
+    app.dependency_overrides[get_attack_chain_repository] = (
+        lambda: FakeAttackChainRepository(store)
+    )
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -1772,3 +1918,396 @@ def awaitable_append_duplicate(
     )
     store.incidents[incident.id] = updated
     return updated
+
+
+def vm_fingerprint_event() -> dict[str, Any]:
+    return event_payload(
+        event_type="network_scan",
+        severity="low",
+        source="network",
+        title="VM scanner fingerprint",
+        raw_event={"user_agent": "Kali Linux scanner via VirtualBox"},
+        normalized_fields={},
+    )
+
+
+def exfiltration_event() -> dict[str, Any]:
+    return event_payload(
+        event_type="network_connection",
+        severity="high",
+        source="network",
+        title="Large outbound connection",
+        raw_event={"dst_ip": "203.0.113.10"},
+        normalized_fields={"direction": "outbound", "bytes_sent": 250000000},
+    )
+
+
+def test_ingestion_that_creates_incident_also_creates_attack_chain(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, api_key, [powershell_event()])
+
+    assert len(store.attack_chains) == 1
+    chain = next(iter(store.attack_chains.values()))
+    assert chain.incident_id == next(iter(store.incidents))
+    assert chain.risk_score > 0
+
+
+def test_second_matching_alert_updates_existing_attack_chain(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, api_key, [powershell_event()])
+    chain_id = next(iter(store.attack_chains))
+    ingest_events(client, api_key, [powershell_event()])
+
+    assert len(store.attack_chains) == 1
+    chain = store.attack_chains[chain_id]
+    assert len(chain.alert_ids) == 2
+    assert len(chain.event_ids) == 2
+
+
+def test_attack_chain_timeline_contains_expected_node_types(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, api_key, [powershell_event()])
+
+    node_types = {node.type for node in next(iter(store.attack_chains.values())).timeline}
+    assert {"event", "detection", "alert", "incident"} <= node_types
+
+
+def test_attack_chain_graph_contains_nodes_and_edges(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, api_key, [powershell_event()])
+
+    graph = next(iter(store.attack_chains.values())).graph
+    assert graph.nodes
+    assert graph.edges
+    assert {node.type for node in graph.nodes} >= {
+        "agent",
+        "event",
+        "detection",
+        "alert",
+        "incident",
+    }
+
+
+def test_risk_score_increases_for_critical_high_and_multiple_techniques(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, key_one = seed_agent(store, organization_id=organization.id)
+    _, key_two = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, key_one, [powershell_event()])
+    lower_risk = next(iter(store.attack_chains.values())).risk_score
+    ingest_events(client, key_two, [mimikatz_event()])
+    higher_risk = max(chain.risk_score for chain in store.attack_chains.values())
+
+    assert higher_risk > lower_risk
+
+
+def test_vm_fingerprint_rule_increases_risk_and_recommended_actions(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, api_key, [vm_fingerprint_event()])
+
+    chain = next(iter(store.attack_chains.values()))
+    assert chain.risk_score >= 35
+    assert "investigate lab/unknown VM source and NAT host" in chain.recommended_actions
+
+
+def test_exfiltration_signal_increases_risk_and_recommended_actions(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, api_key, [exfiltration_event()])
+
+    chain = next(iter(store.attack_chains.values()))
+    assert chain.risk_score >= 85
+    assert "block outbound destination" in chain.recommended_actions
+    assert "review data access logs" in chain.recommended_actions
+
+
+def test_confidence_score_increases_with_multiple_event_types(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    first_rule = custom_rule_payload(name="Shared Technique Process")
+    second_rule = custom_rule_payload(name="Shared Technique File", event_type="file_write")
+    for payload in [first_rule, second_rule]:
+        response = client.post(
+            "/api/detections/rules",
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+        assert response.status_code == 201
+
+    ingest_events(
+        client,
+        api_key,
+        [event_payload(normalized_fields={"command_line": "curl http://example.test/a"})],
+    )
+    first_confidence = next(iter(store.attack_chains.values())).confidence_score
+    ingest_events(
+        client,
+        api_key,
+        [
+            event_payload(
+                event_type="file_write",
+                normalized_fields={"command_line": "curl http://example.test/b"},
+            )
+        ],
+    )
+    second_confidence = next(iter(store.attack_chains.values())).confidence_score
+
+    assert second_confidence > first_confidence
+
+
+def test_attack_chain_story_includes_host_alert_count_and_risk(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    agent, api_key = seed_agent(store, organization_id=organization.id)
+
+    ingest_events(client, api_key, [powershell_event()])
+
+    story = next(iter(store.attack_chains.values())).story
+    assert agent.hostname in story
+    assert "1 alerts" in story
+    assert "risk score" in story
+
+
+def test_list_attack_chains_org_scoped(client: TestClient, store: EventTestStore) -> None:
+    org_one, _, token_one = seed_principal(store, email="chain-one@example.com")
+    _, key_one = seed_agent(store, organization_id=org_one.id)
+    org_two, _, _ = seed_principal(store, email="chain-two@example.com")
+    _, key_two = seed_agent(store, organization_id=org_two.id)
+    ingest_events(client, key_one, [powershell_event()])
+    ingest_events(client, key_two, [powershell_event()])
+
+    response = client.get("/api/attack-chains", headers={"Authorization": f"Bearer {token_one}"})
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("params", "expected_count"),
+    [
+        ({"status": "active"}, 2),
+        ({"severity": "critical"}, 1),
+        ({"mitre_technique": "T1003"}, 1),
+        ({"min_risk_score": 80}, 1),
+    ],
+)
+def test_attack_chain_filters_work(
+    client: TestClient,
+    store: EventTestStore,
+    params: dict[str, str | int],
+    expected_count: int,
+) -> None:
+    organization, _, token = seed_principal(store)
+    agent, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    ingest_events(client, api_key, [mimikatz_event()])
+    if "agent_id" in params:
+        params["agent_id"] = agent.id
+
+    response = client.get(
+        "/api/attack-chains",
+        params=params,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["count"] == expected_count
+
+
+def test_attack_chain_filter_works_for_agent_id(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store)
+    agent, api_key = seed_agent(store, organization_id=organization.id)
+    _, other_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    ingest_events(client, other_key, [mimikatz_event()])
+
+    response = client.get(
+        "/api/attack-chains",
+        params={"agent_id": agent.id},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["count"] == 1
+
+
+def test_get_attack_chain_by_id_works(client: TestClient, store: EventTestStore) -> None:
+    organization, _, token = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    chain_id = next(iter(store.attack_chains))
+
+    response = client.get(
+        f"/api/attack-chains/{chain_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == chain_id
+
+
+def test_get_attack_chain_by_incident_id_works(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, token = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    incident_id = next(iter(store.incidents))
+
+    response = client.get(
+        f"/api/incidents/{incident_id}/attack-chain",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["incident_id"] == incident_id
+
+
+def test_cross_org_attack_chain_access_blocked(client: TestClient, store: EventTestStore) -> None:
+    org_one, _, _ = seed_principal(store, email="chain-cross-one@example.com")
+    _, key_one = seed_agent(store, organization_id=org_one.id)
+    _, _, token_two = seed_principal(store, email="chain-cross-two@example.com")
+    ingest_events(client, key_one, [powershell_event()])
+    chain_id = next(iter(store.attack_chains))
+
+    response = client.get(
+        f"/api/attack-chains/{chain_id}",
+        headers={"Authorization": f"Bearer {token_two}"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_viewer_can_list_read_but_cannot_update_attack_chain(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, viewer_token = create_user(
+        store,
+        organization_id=organization.id,
+        role=Role.VIEWER,
+        email="viewer-chains@example.com",
+    )
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    chain_id = next(iter(store.attack_chains))
+
+    list_response = client.get(
+        "/api/attack-chains",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+    )
+    detail_response = client.get(
+        f"/api/attack-chains/{chain_id}",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+    )
+    update_response = client.patch(
+        f"/api/attack-chains/{chain_id}/status",
+        headers={"Authorization": f"Bearer {viewer_token}"},
+        json={"status": "contained"},
+    )
+
+    assert list_response.status_code == 200
+    assert detail_response.status_code == 200
+    assert update_response.status_code == 403
+
+
+def test_analyst_can_update_attack_chain_status(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    chain_id = next(iter(store.attack_chains))
+
+    response = client.patch(
+        f"/api/attack-chains/{chain_id}/status",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "contained"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "contained"
+
+
+def test_invalid_attack_chain_status_rejected(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, token = seed_principal(store, role=Role.ANALYST)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    chain_id = next(iter(store.attack_chains))
+
+    response = client.patch(
+        f"/api/attack-chains/{chain_id}/status",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"status": "invalid"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_attack_chain_duplicate_references_are_not_added_on_update(
+    client: TestClient,
+    store: EventTestStore,
+) -> None:
+    organization, _, _ = seed_principal(store)
+    _, api_key = seed_agent(store, organization_id=organization.id)
+    ingest_events(client, api_key, [powershell_event()])
+    chain = next(iter(store.attack_chains.values()))
+
+    updated = chain.model_copy(
+        update={
+            "alert_ids": list(dict.fromkeys([*chain.alert_ids, *chain.alert_ids])),
+            "detection_result_ids": list(
+                dict.fromkeys([*chain.detection_result_ids, *chain.detection_result_ids])
+            ),
+            "event_ids": list(dict.fromkeys([*chain.event_ids, *chain.event_ids])),
+            "agent_ids": list(dict.fromkeys([*chain.agent_ids, *chain.agent_ids])),
+        },
+    )
+
+    assert len(updated.alert_ids) == len(chain.alert_ids)
+    assert len(updated.detection_result_ids) == len(chain.detection_result_ids)
+    assert len(updated.event_ids) == len(chain.event_ids)
+    assert len(updated.agent_ids) == len(chain.agent_ids)

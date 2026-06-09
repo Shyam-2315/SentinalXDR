@@ -10,6 +10,7 @@ from app.models.auth import Role, UserStatus
 from app.models.user import User
 from app.repositories.agents import AgentRepository
 from app.repositories.alerts import AlertRepository
+from app.repositories.attack_chains import AttackChainRepository
 from app.repositories.detections import DetectionResultRepository, DetectionRuleRepository
 from app.repositories.events import EventRepository
 from app.repositories.incidents import IncidentRepository
@@ -49,6 +50,10 @@ def get_alert_repository() -> AlertRepository:
 
 def get_incident_repository() -> IncidentRepository:
     return IncidentRepository(get_database())
+
+
+def get_attack_chain_repository() -> AttackChainRepository:
+    return AttackChainRepository(get_database())
 
 
 async def get_current_user(

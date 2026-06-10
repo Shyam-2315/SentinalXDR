@@ -90,6 +90,19 @@ def test_ready_health_success(client: TestClient, monkeypatch: pytest.MonkeyPatc
     assert body["dependencies"]["redis"]["status"] == "healthy"
 
 
+def test_cors_allows_frontend_localhost_origin(client: TestClient) -> None:
+    response = client.options(
+        "/api/dashboard/summary",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
 @pytest.mark.parametrize(
     ("db_healthy", "redis_healthy"),
     [

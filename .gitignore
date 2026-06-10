@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.dev/
+node_modules/
+dist/
+*:Zone.Identifier

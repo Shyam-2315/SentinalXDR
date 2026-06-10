@@ -21,6 +21,16 @@ uvicorn app.main:app --reload
 
 The API will be available at `http://localhost:8000`.
 
+Swagger is available at `http://localhost:8000/docs`.
+
+For the full stack, prefer the repository root command:
+
+```bash
+make dev
+```
+
+This starts MongoDB and Redis from `backend/docker-compose.yml`, starts the backend on port `8000`, and starts the frontend on port `5173`.
+
 Health endpoints:
 
 - `GET /health/live`

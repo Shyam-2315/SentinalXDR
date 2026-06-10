@@ -46,6 +46,21 @@ class Settings(BaseSettings):
         default=30,
         alias="INCIDENT_CORRELATION_WINDOW_MINUTES",
     )
+    cors_allowed_origins: str = Field(
+        default=(
+            "http://localhost:5173,http://127.0.0.1:5173,"
+            "http://localhost:3000,http://127.0.0.1:3000"
+        ),
+        alias="CORS_ALLOWED_ORIGINS",
+    )
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
 
 @lru_cache

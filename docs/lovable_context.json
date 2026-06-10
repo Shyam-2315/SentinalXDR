@@ -1,0 +1,169 @@
+{
+  "alert_table_fields": [
+    "title",
+    "severity",
+    "status",
+    "mitre_tactics",
+    "mitre_techniques",
+    "created_at"
+  ],
+  "api_base_url": "http://localhost:8000",
+  "attack_chain_graph_fields": [
+    "graph.nodes[].id",
+    "graph.nodes[].label",
+    "graph.nodes[].type",
+    "graph.nodes[].severity",
+    "graph.edges[].source",
+    "graph.edges[].target",
+    "graph.edges[].relationship"
+  ],
+  "auth_flow": {
+    "login_endpoint": "POST /api/auth/login",
+    "refresh_endpoint": "POST /api/auth/refresh",
+    "register_endpoint": "POST /api/auth/register",
+    "storage": "Store access token client-side and send Authorization: Bearer <token>.",
+    "type": "JWT bearer"
+  },
+  "dashboard_card_fields": [
+    "total_agents",
+    "online_agents",
+    "total_events",
+    "total_alerts",
+    "open_alerts",
+    "total_incidents",
+    "open_incidents",
+    "total_attack_chains",
+    "active_attack_chains",
+    "risk_score_average"
+  ],
+  "endpoints": [
+    "POST /api/auth/login",
+    "GET /api/auth/me",
+    "GET /api/dashboard/summary",
+    "GET /api/dashboard/security-posture",
+    "GET /api/dashboard/recent-alerts",
+    "GET /api/dashboard/recent-incidents",
+    "GET /api/dashboard/recent-attack-chains",
+    "GET /api/dashboard/mitre-summary",
+    "GET /api/dashboard/severity-trends",
+    "GET /api/dashboard/agent-health",
+    "GET /api/agents",
+    "GET /api/events",
+    "GET /api/alerts",
+    "GET /api/incidents",
+    "GET /api/attack-chains"
+  ],
+  "incident_table_fields": [
+    "title",
+    "severity",
+    "status",
+    "mitre_techniques",
+    "first_seen_at",
+    "last_seen_at",
+    "assigned_to_user_id"
+  ],
+  "page_plan": [
+    {
+      "purpose": "JWT login screen",
+      "route": "/login"
+    },
+    {
+      "purpose": "SOC overview, posture, metrics, trends",
+      "route": "/dashboard"
+    },
+    {
+      "purpose": "Agent inventory and health",
+      "route": "/agents"
+    },
+    {
+      "purpose": "Searchable event stream",
+      "route": "/events"
+    },
+    {
+      "purpose": "Alert triage queue",
+      "route": "/alerts"
+    },
+    {
+      "purpose": "Incident management",
+      "route": "/incidents"
+    },
+    {
+      "purpose": "Correlated attack-chain list",
+      "route": "/attack-chains"
+    },
+    {
+      "purpose": "Threat story, timeline, graph view",
+      "route": "/attack-chains/:id"
+    },
+    {
+      "purpose": "MITRE tactic and technique summary",
+      "route": "/mitre"
+    }
+  ],
+  "project": "SentinelXDR",
+  "recommended_frontend_routes": [
+    "/login",
+    "/dashboard",
+    "/agents",
+    "/events",
+    "/alerts",
+    "/incidents",
+    "/attack-chains",
+    "/attack-chains/:id",
+    "/mitre"
+  ],
+  "response_examples": {
+    "alert": {
+      "id": "alr_...",
+      "mitre_techniques": [
+        "T1110"
+      ],
+      "severity": "medium",
+      "status": "open",
+      "title": "SSH Brute Force Signal"
+    },
+    "attack_chain": {
+      "graph": {
+        "edges": [],
+        "nodes": []
+      },
+      "id": "chain_...",
+      "story": "SentinelXDR observed suspicious activity...",
+      "title": "Attack chain: SSH Brute Force Signal"
+    },
+    "dashboard_summary": {
+      "online_agents": 1,
+      "open_alerts": 6,
+      "risk_score_average": 72.5,
+      "total_agents": 1,
+      "total_alerts": 6,
+      "total_attack_chains": 6,
+      "total_events": 6,
+      "total_incidents": 6
+    },
+    "login": {
+      "access_token": "eyJ...",
+      "refresh_token": "eyJ...",
+      "token_type": "bearer",
+      "user": {
+        "email": "demo@sentinelxdrdemo.com",
+        "role": "org_admin"
+      }
+    }
+  },
+  "ui_components_needed": [
+    "Login form",
+    "Metric cards",
+    "Severity trend chart",
+    "MITRE coverage chart",
+    "Agent health table",
+    "Alerts table",
+    "Incidents table",
+    "Events table",
+    "Attack chain graph",
+    "Attack timeline",
+    "Threat story panel",
+    "Status and severity badges",
+    "Filter/search controls"
+  ]
+}

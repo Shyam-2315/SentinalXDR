@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.router import api_router
 from app.api.routes.agents import router as agents_router
@@ -22,6 +23,9 @@ from app.db.redis import redis_store
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
+    if settings.environment == "test":
+        yield
+        return
     await mongodb.connect(settings)
     await redis_store.connect(settings)
     try:
@@ -37,10 +41,17 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version=settings.app_version,
         debug=settings.debug,
-        docs_url=f"{settings.api_v1_prefix}/docs",
-        redoc_url=f"{settings.api_v1_prefix}/redoc",
-        openapi_url=f"{settings.api_v1_prefix}/openapi.json",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
         lifespan=lifespan,
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.include_router(auth_router)
     app.include_router(agents_router)

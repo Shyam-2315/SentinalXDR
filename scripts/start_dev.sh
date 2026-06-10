@@ -14,6 +14,22 @@ REDIS_PORT="${REDIS_PORT:-6379}"
 
 mkdir -p "${LOG_DIR}" "${PID_DIR}"
 
+COMPOSE=(docker compose --project-directory "${BACKEND_DIR}" -f "${BACKEND_DIR}/docker-compose.yml")
+
+suggest_alt_ports() {
+  echo "Try alternate ports:" >&2
+  echo "  BACKEND_PORT=8010 FRONTEND_PORT=5174 MONGO_PORT=27018 REDIS_PORT=6380 make dev" >&2
+}
+
+tail_log() {
+  local label="$1"
+  local file="$2"
+  if [[ -f "${file}" ]]; then
+    echo "[dev] Last lines from ${label} (${file}):" >&2
+    tail -n 80 "${file}" >&2 || true
+  fi
+}
+
 detect_frontend_pm() {
   if [[ -f "${FRONTEND_DIR}/bun.lock" || -f "${FRONTEND_DIR}/bun.lockb" ]]; then
     echo "bun"
@@ -36,6 +52,47 @@ require_cmd() {
   fi
 }
 
+port_in_use() {
+  local port="$1"
+  python3 - "${port}" <<'PY'
+import socket
+import sys
+
+port = int(sys.argv[1])
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+try:
+    sock.bind(("127.0.0.1", port))
+except PermissionError:
+    raise SystemExit(2)
+except OSError:
+    raise SystemExit(0)
+finally:
+    sock.close()
+raise SystemExit(1)
+PY
+}
+
+check_port_available() {
+  local label="$1"
+  local port="$2"
+  local status=0
+  port_in_use "${port}" || status=$?
+  if [[ "${status}" -eq 0 ]]; then
+    echo "ERROR: ${label} port ${port} is already in use." >&2
+    suggest_alt_ports
+    exit 1
+  elif [[ "${status}" -eq 2 ]]; then
+    echo "[dev] Skipping ${label} port ${port} preflight; socket checks are not permitted here." >&2
+  fi
+}
+
+compose_service_running() {
+  local service="$1"
+  MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
+    "${COMPOSE[@]}" ps --status running "${service}" 2>/dev/null | grep -q "${service}"
+}
+
 wait_for_url() {
   local url="$1"
   local label="$2"
@@ -52,9 +109,21 @@ wait_for_url() {
 
 start_backend_deps() {
   require_cmd docker
+  require_cmd python3
+  if ! compose_service_running mongo; then
+    check_port_available "MongoDB" "${MONGO_PORT}"
+  fi
+  if ! compose_service_running redis; then
+    check_port_available "Redis" "${REDIS_PORT}"
+  fi
   echo "[dev] Starting MongoDB and Redis"
-  MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
-    docker compose -f "${BACKEND_DIR}/docker-compose.yml" up -d mongo redis >"${LOG_DIR}/compose.log" 2>&1
+  if ! MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
+    "${COMPOSE[@]}" up -d mongo redis >"${LOG_DIR}/compose.log" 2>&1; then
+    echo "ERROR: failed to start MongoDB/Redis with Docker Compose." >&2
+    tail_log "compose" "${LOG_DIR}/compose.log"
+    suggest_alt_ports
+    exit 1
+  fi
 }
 
 start_backend() {
@@ -66,6 +135,7 @@ start_backend() {
     echo "ERROR: backend virtualenv not found at backend/.venv" >&2
     exit 1
   fi
+  check_port_available "backend" "${BACKEND_PORT}"
   echo "[dev] Starting backend on port ${BACKEND_PORT}"
   setsid nohup bash -c '
     cd "$1"
@@ -97,6 +167,7 @@ start_frontend() {
     fi
   fi
   require_cmd "${pm}"
+  check_port_available "frontend" "${FRONTEND_PORT}"
   echo "[dev] Starting frontend with ${pm} on port ${FRONTEND_PORT}"
   setsid nohup bash -c '
     cd "$1"
@@ -115,9 +186,16 @@ start_frontend() {
 
 start_backend_deps
 start_backend
-wait_for_url "http://localhost:${BACKEND_PORT}/health/ready" "backend readiness"
+if ! wait_for_url "http://localhost:${BACKEND_PORT}/health/ready" "backend readiness"; then
+  tail_log "backend" "${LOG_DIR}/backend.log"
+  tail_log "compose" "${LOG_DIR}/compose.log"
+  exit 1
+fi
 start_frontend
-wait_for_url "http://localhost:${FRONTEND_PORT}" "frontend"
+if ! wait_for_url "http://localhost:${FRONTEND_PORT}" "frontend"; then
+  tail_log "frontend" "${LOG_DIR}/frontend.log"
+  exit 1
+fi
 
 echo "Backend URL: http://localhost:${BACKEND_PORT}"
 echo "Frontend URL: http://localhost:${FRONTEND_PORT}"

@@ -20,7 +20,7 @@ from app.schemas.detections import (
     DetectionRuleUpdate,
 )
 
-router = APIRouter(prefix="/api/detections", tags=["detections"])
+router = APIRouter(prefix="/detections", tags=["detections"])
 
 READ_ROLES = (Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ANALYST, Role.VIEWER)
 CREATE_ROLES = (Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ANALYST)

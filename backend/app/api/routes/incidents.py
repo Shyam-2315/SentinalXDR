@@ -17,7 +17,7 @@ from app.schemas.incidents import (
     IncidentSummaryUpdate,
 )
 
-router = APIRouter(prefix="/api/incidents", tags=["incidents"])
+router = APIRouter(prefix="/incidents", tags=["incidents"])
 
 READ_ROLES = (Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ANALYST, Role.VIEWER)
 UPDATE_ROLES = (Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ANALYST)

@@ -14,8 +14,8 @@ from app.schemas.attack_chains import (
     AttackChainStatusUpdate,
 )
 
-router = APIRouter(prefix="/api/attack-chains", tags=["attack-chains"])
-incident_router = APIRouter(prefix="/api/incidents", tags=["attack-chains"])
+router = APIRouter(prefix="/attack-chains", tags=["attack-chains"])
+incident_router = APIRouter(prefix="/incidents", tags=["attack-chains"])
 
 READ_ROLES = (Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ANALYST, Role.VIEWER)
 UPDATE_ROLES = (Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ANALYST)

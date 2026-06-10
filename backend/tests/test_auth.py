@@ -185,6 +185,27 @@ def test_login_success(client: TestClient) -> None:
     assert "hashed_password" not in body["user"]
 
 
+def test_versioned_auth_register_and_login(client: TestClient) -> None:
+    register_response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "versioned@example.com",
+            "password": "password123",
+            "display_name": "Versioned Analyst",
+            "organization_name": "Versioned Security",
+        },
+    )
+    assert register_response.status_code == 201
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "versioned@example.com", "password": "password123"},
+    )
+
+    assert login_response.status_code == 200
+    assert login_response.json()["access_token"]
+
+
 def test_login_wrong_password_rejected(client: TestClient) -> None:
     register_user(client)
 

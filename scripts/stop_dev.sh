@@ -7,6 +7,7 @@ PID_DIR="${ROOT_DIR}/.dev/pids"
 LOG_DIR="${ROOT_DIR}/.dev/logs"
 MONGO_PORT="${MONGO_PORT:-27017}"
 REDIS_PORT="${REDIS_PORT:-6379}"
+COMPOSE=(docker compose --project-directory "${BACKEND_DIR}" -f "${BACKEND_DIR}/docker-compose.yml")
 
 stop_pid() {
   local name="$1"
@@ -18,7 +19,7 @@ stop_pid() {
   pid="$(cat "${pid_file}")"
   if kill -0 "${pid}" 2>/dev/null; then
     echo "[dev] Stopping ${name} PID ${pid}"
-    kill "${pid}" 2>/dev/null || true
+    kill -- "-${pid}" 2>/dev/null || kill "${pid}" 2>/dev/null || true
     for _ in $(seq 1 15); do
       if ! kill -0 "${pid}" 2>/dev/null; then
         break
@@ -26,7 +27,7 @@ stop_pid() {
       sleep 1
     done
     if kill -0 "${pid}" 2>/dev/null; then
-      kill -9 "${pid}" 2>/dev/null || true
+      kill -9 -- "-${pid}" 2>/dev/null || kill -9 "${pid}" 2>/dev/null || true
     fi
   fi
   rm -f "${pid_file}"
@@ -39,7 +40,7 @@ stop_pid backend
 if command -v docker >/dev/null 2>&1; then
   echo "[dev] Stopping MongoDB and Redis"
   MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
-    docker compose -f "${BACKEND_DIR}/docker-compose.yml" stop mongo redis >"${LOG_DIR}/compose.log" 2>&1 || true
+    "${COMPOSE[@]}" stop mongo redis >"${LOG_DIR}/compose.log" 2>&1 || true
 fi
 
 find "${PID_DIR}" -type f -name '*.pid' -delete 2>/dev/null || true

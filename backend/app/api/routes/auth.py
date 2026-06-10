@@ -25,7 +25,7 @@ from app.schemas.auth import (
     UserRead,
 )
 
-router = APIRouter(prefix="/api/auth", tags=["auth"])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def to_user_read(user: User) -> UserRead:

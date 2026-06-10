@@ -9,7 +9,7 @@ from app.models.user import User
 from app.repositories.alerts import AlertRepository
 from app.schemas.alerts import AlertListResponse, AlertRead, AlertStatusUpdate
 
-router = APIRouter(prefix="/api/alerts", tags=["alerts"])
+router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 READ_ROLES = (Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ANALYST, Role.VIEWER)
 UPDATE_ROLES = (Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ANALYST)

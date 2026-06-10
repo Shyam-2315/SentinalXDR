@@ -1,8 +1,16 @@
 import { toast } from "sonner";
 import { authStore } from "./auth";
 
-const BASE_URL =
+const RAW_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
+
+function normalizeBaseUrl(value: string) {
+  const url = new URL(value);
+  url.pathname = url.pathname.replace(/\/+$/, "").replace(/\/api\/v1$/, "").replace(/\/api$/, "");
+  return url.toString().replace(/\/$/, "");
+}
+
+const BASE_URL = normalizeBaseUrl(RAW_BASE_URL);
 
 export class ApiError extends Error {
   status: number;
@@ -24,7 +32,8 @@ type RequestOpts = {
 };
 
 function buildUrl(path: string, query?: RequestOpts["query"]) {
-  const url = new URL(path.startsWith("http") ? path : `${BASE_URL}${path}`);
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const url = new URL(path.startsWith("http") ? path : `${BASE_URL}${normalizedPath}`);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v === undefined || v === null || v === "") continue;

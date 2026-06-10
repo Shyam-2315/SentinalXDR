@@ -5,6 +5,7 @@ import os
 from datetime import UTC, datetime
 from typing import Any
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 DEMO_TAG = "sentinelxdr-demo"
@@ -23,6 +24,16 @@ class DemoError(RuntimeError):
 
 def utc_timestamp() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def normalize_api_base_url(api_base_url: str) -> str:
+    parsed = urlsplit(api_base_url.rstrip("/"))
+    path = parsed.path.rstrip("/")
+    for suffix in ("/api/v1", "/api"):
+        if path == suffix or path.endswith(suffix):
+            path = path[: -len(suffix)]
+            break
+    return urlunsplit((parsed.scheme, parsed.netloc, path.rstrip("/"), "", "")).rstrip("/")
 
 
 def request_json(
@@ -44,8 +55,10 @@ def request_json(
     if agent_key:
         headers["X-Agent-Key"] = agent_key
 
+    normalized_base_url = normalize_api_base_url(api_base_url)
+    normalized_path = path if path.startswith("/") else f"/{path}"
     request = Request(
-        f"{api_base_url.rstrip('/')}{path}",
+        f"{normalized_base_url}{normalized_path}",
         data=data,
         headers=headers,
         method=method,
@@ -55,9 +68,9 @@ def request_json(
             raw = response.read().decode("utf-8")
     except HTTPError as exc:
         body = exc.read().decode("utf-8", errors="replace")
-        raise DemoError(f"HTTP {exc.code} {method} {path}: {body}") from exc
+        raise DemoError(f"HTTP {exc.code} {method} {normalized_path}: {body}") from exc
     except URLError as exc:
-        raise DemoError(f"Unable to reach backend at {api_base_url}: {exc.reason}") from exc
+        raise DemoError(f"Unable to reach backend at {normalized_base_url}: {exc.reason}") from exc
     return json.loads(raw) if raw else {}
 
 

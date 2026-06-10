@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.demo_common import DEMO_TAG, demo_event_batch
+from scripts.demo_common import DEMO_TAG, demo_event_batch, normalize_api_base_url
 from scripts.export_lovable_context import build_lovable_context
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,6 +29,13 @@ def test_demo_event_batch_is_tagged_and_safe() -> None:
         assert event["raw_event"]["simulation"] is True
         assert event["raw_event"]["demo"] is True
         assert "sentinelxdr-demo" in event["tags"]
+
+
+def test_demo_api_base_url_normalization() -> None:
+    assert normalize_api_base_url("http://localhost:8000") == "http://localhost:8000"
+    assert normalize_api_base_url("http://localhost:8000/api") == "http://localhost:8000"
+    assert normalize_api_base_url("http://localhost:8000/api/v1") == "http://localhost:8000"
+    assert normalize_api_base_url("http://localhost:8000/api/v1/") == "http://localhost:8000"
 
 
 def test_required_phase11_docs_exist() -> None:

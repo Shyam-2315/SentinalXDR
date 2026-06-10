@@ -33,7 +33,7 @@ from app.services.attack_chain_engine import AttackChainEngine
 from app.services.detection_engine import DetectionEngine
 from app.services.incident_engine import IncidentEngine
 
-router = APIRouter(prefix="/api/events", tags=["events"])
+router = APIRouter(prefix="/events", tags=["events"])
 
 READ_ROLES = (Role.SUPER_ADMIN, Role.ORG_ADMIN, Role.ANALYST, Role.VIEWER)
 

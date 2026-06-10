@@ -40,6 +40,33 @@ def test_live_health(client: TestClient) -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_api_routes_are_mounted_at_legacy_and_versioned_prefixes(client: TestClient) -> None:
+    response = client.get("/openapi.json")
+
+    assert response.status_code == 200
+    paths = response.json()["paths"]
+    expected_suffixes = [
+        "/auth/register",
+        "/auth/login",
+        "/agents",
+        "/agents/register",
+        "/events",
+        "/events/ingest",
+        "/detections/rules",
+        "/alerts",
+        "/incidents",
+        "/attack-chains",
+        "/dashboard/summary",
+    ]
+    for prefix in ("/api", "/api/v1"):
+        for suffix in expected_suffixes:
+            assert f"{prefix}{suffix}" in paths
+
+    assert "/health/live" in paths
+    assert "/api/health/live" not in paths
+    assert "/api/v1/health/live" not in paths
+
+
 def test_db_health_success(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     set_dependency_health(monkeypatch, db=True, redis=True)
 

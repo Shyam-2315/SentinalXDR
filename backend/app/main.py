@@ -4,17 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.router import api_router
-from app.api.routes.agents import router as agents_router
-from app.api.routes.alerts import router as alerts_router
-from app.api.routes.attack_chains import incident_router as incident_attack_chain_router
-from app.api.routes.attack_chains import router as attack_chains_router
-from app.api.routes.auth import router as auth_router
-from app.api.routes.dashboard import router as dashboard_router
-from app.api.routes.detections import router as detections_router
-from app.api.routes.events import router as events_router
+from app.api.router import build_api_router
 from app.api.routes.health import router as health_router
-from app.api.routes.incidents import router as incidents_router
 from app.core.config import get_settings
 from app.db.mongodb import mongodb
 from app.db.redis import redis_store
@@ -53,17 +44,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.include_router(auth_router)
-    app.include_router(agents_router)
-    app.include_router(events_router)
-    app.include_router(detections_router)
-    app.include_router(alerts_router)
-    app.include_router(incidents_router)
-    app.include_router(attack_chains_router)
-    app.include_router(incident_attack_chain_router)
-    app.include_router(dashboard_router)
+    app.include_router(build_api_router(), prefix="/api")
     app.include_router(health_router)
-    app.include_router(api_router, prefix=settings.api_v1_prefix)
+    app.include_router(build_api_router(), prefix=settings.api_v1_prefix)
     return app
 
 

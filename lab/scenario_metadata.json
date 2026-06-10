@@ -1,0 +1,59 @@
+{
+  "scenarios": [
+    {
+      "id": "scenario_01_recon",
+      "script": "attack_scenarios/scenario_01_recon.sh",
+      "purpose": "Generate safe local-lab reconnaissance telemetry resembling host discovery and port scanning.",
+      "expected_rules": ["Nmap Scan Detected"],
+      "expected_mitre_techniques": ["T1595"],
+      "expected_tactics": ["Reconnaissance"]
+    },
+    {
+      "id": "scenario_02_bruteforce_signal",
+      "script": "attack_scenarios/scenario_02_bruteforce_signal.sh",
+      "purpose": "Generate repeated failed SSH authentication telemetry without attempting logins.",
+      "expected_rules": ["SSH Brute Force Signal"],
+      "expected_mitre_techniques": ["T1110"],
+      "expected_tactics": ["Credential Access"]
+    },
+    {
+      "id": "scenario_03_execution_signal",
+      "script": "attack_scenarios/scenario_03_execution_signal.sh",
+      "purpose": "Generate simulation-marked execution telemetry for encoded PowerShell and base64 command patterns.",
+      "expected_rules": ["Suspicious PowerShell Encoded Command", "Suspicious Base64 Command"],
+      "expected_mitre_techniques": ["T1059.001", "T1027"],
+      "expected_tactics": ["Execution", "Defense Evasion"]
+    },
+    {
+      "id": "scenario_04_persistence_signal",
+      "script": "attack_scenarios/scenario_04_persistence_signal.sh",
+      "purpose": "Generate cron persistence indicator telemetry without changing cron files.",
+      "expected_rules": ["Linux Cron Persistence"],
+      "expected_mitre_techniques": ["T1053.003"],
+      "expected_tactics": ["Persistence"]
+    },
+    {
+      "id": "scenario_05_exfiltration_signal",
+      "script": "attack_scenarios/scenario_05_exfiltration_signal.sh",
+      "purpose": "Generate large outbound transfer indicator telemetry without sending data.",
+      "expected_rules": ["Large Outbound Transfer"],
+      "expected_mitre_techniques": ["T1041"],
+      "expected_tactics": ["Exfiltration"]
+    },
+    {
+      "id": "scenario_06_full_attack_chain",
+      "script": "attack_scenarios/scenario_06_full_attack_chain.sh",
+      "purpose": "Generate a safe multi-stage event batch covering recon, credential access, execution, persistence, and exfiltration.",
+      "expected_rules": [
+        "Nmap Scan Detected",
+        "SSH Brute Force Signal",
+        "Suspicious PowerShell Encoded Command",
+        "Suspicious Base64 Command",
+        "Linux Cron Persistence",
+        "Large Outbound Transfer"
+      ],
+      "expected_mitre_techniques": ["T1595", "T1110", "T1059.001", "T1027", "T1053.003", "T1041"],
+      "expected_tactics": ["Reconnaissance", "Credential Access", "Execution", "Defense Evasion", "Persistence", "Exfiltration"]
+    }
+  ]
+}

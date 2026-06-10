@@ -1,0 +1,27 @@
+api:
+  base_url: http://localhost:8000
+
+agent:
+  api_key: sxag_replace_with_registered_agent_key
+  version: 0.1.0
+  interval_seconds: 60
+  batch_size: 100
+  dry_run: false
+  once: false
+  timeout_seconds: 10
+  max_retries: 3
+  backoff_seconds: 1
+  state_path: /tmp/sentinelxdr-linux-agent-state.json
+  log_level: INFO
+
+collection:
+  auth_log_paths:
+    - /var/log/auth.log
+    - /var/log/secure
+  cron_paths:
+    - /etc/crontab
+    - /etc/cron.d
+    - /var/spool/cron
+    - /var/spool/cron/crontabs
+  process_limit: 500
+  initial_log_tail_bytes: 65536

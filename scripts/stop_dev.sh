@@ -7,7 +7,14 @@ PID_DIR="${ROOT_DIR}/.dev/pids"
 LOG_DIR="${ROOT_DIR}/.dev/logs"
 MONGO_PORT="${MONGO_PORT:-27017}"
 REDIS_PORT="${REDIS_PORT:-6379}"
-COMPOSE=(docker compose --project-directory "${BACKEND_DIR}" -f "${BACKEND_DIR}/docker-compose.yml")
+BACKEND_PORT="${BACKEND_PORT:-8000}"
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-backend}"
+COMPOSE=(
+  docker compose
+  --project-name "${COMPOSE_PROJECT_NAME}"
+  --project-directory "${BACKEND_DIR}"
+  -f "${BACKEND_DIR}/docker-compose.yml"
+)
 
 stop_pid() {
   local name="$1"
@@ -39,7 +46,7 @@ stop_pid backend
 
 if command -v docker >/dev/null 2>&1; then
   echo "[dev] Stopping MongoDB and Redis"
-  MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
+  BACKEND_PORT="${BACKEND_PORT}" MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
     "${COMPOSE[@]}" stop mongo redis >"${LOG_DIR}/compose.log" 2>&1 || true
 fi
 

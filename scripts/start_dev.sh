@@ -14,7 +14,13 @@ REDIS_PORT="${REDIS_PORT:-6379}"
 
 mkdir -p "${LOG_DIR}" "${PID_DIR}"
 
-COMPOSE=(docker compose --project-directory "${BACKEND_DIR}" -f "${BACKEND_DIR}/docker-compose.yml")
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-backend}"
+COMPOSE=(
+  docker compose
+  --project-name "${COMPOSE_PROJECT_NAME}"
+  --project-directory "${BACKEND_DIR}"
+  -f "${BACKEND_DIR}/docker-compose.yml"
+)
 
 suggest_alt_ports() {
   echo "Try alternate ports:" >&2
@@ -89,7 +95,7 @@ check_port_available() {
 
 compose_service_running() {
   local service="$1"
-  MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
+  BACKEND_PORT="${BACKEND_PORT}" MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
     "${COMPOSE[@]}" ps --status running "${service}" 2>/dev/null | grep -q "${service}"
 }
 
@@ -117,7 +123,7 @@ start_backend_deps() {
     check_port_available "Redis" "${REDIS_PORT}"
   fi
   echo "[dev] Starting MongoDB and Redis"
-  if ! MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
+  if ! BACKEND_PORT="${BACKEND_PORT}" MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" \
     "${COMPOSE[@]}" up -d mongo redis >"${LOG_DIR}/compose.log" 2>&1; then
     echo "ERROR: failed to start MongoDB/Redis with Docker Compose." >&2
     tail_log "compose" "${LOG_DIR}/compose.log"
@@ -139,13 +145,14 @@ start_backend() {
   echo "[dev] Starting backend on port ${BACKEND_PORT}"
   setsid nohup bash -c '
     cd "$1"
-    MONGODB_URI="$2" REDIS_URL="$3" "$4" -m uvicorn app.main:app --host 0.0.0.0 --port "$5"
+    MONGODB_URI="$2" REDIS_URL="$3" CORS_ALLOWED_ORIGINS="$6" "$4" -m uvicorn app.main:app --host 0.0.0.0 --port "$5"
   ' _ \
     "${BACKEND_DIR}" \
     "${MONGODB_URI:-mongodb://localhost:${MONGO_PORT}}" \
     "${REDIS_URL:-redis://localhost:${REDIS_PORT}/0}" \
     "${BACKEND_DIR}/.venv/bin/python" \
     "${BACKEND_PORT}" \
+    "${CORS_ALLOWED_ORIGINS:-http://localhost:${FRONTEND_PORT},http://127.0.0.1:${FRONTEND_PORT},http://localhost:3000,http://127.0.0.1:3000}" \
     >"${LOG_DIR}/backend.log" 2>&1 &
   echo "$!" >"${PID_DIR}/backend.pid"
 }
@@ -173,6 +180,7 @@ start_frontend() {
     cd "$1"
     pm="$2"
     port="$3"
+    export VITE_API_BASE_URL="$4"
     case "${pm}" in
       bun) bun run dev --host 0.0.0.0 --port "${port}" ;;
       pnpm) pnpm run dev -- --host 0.0.0.0 --port "${port}" ;;
@@ -180,7 +188,7 @@ start_frontend() {
       npm) npm run dev -- --host 0.0.0.0 --port "${port}" ;;
       *) echo "ERROR: unsupported package manager ${pm}" >&2; exit 1 ;;
     esac
-  ' _ "${FRONTEND_DIR}" "${pm}" "${FRONTEND_PORT}" >"${LOG_DIR}/frontend.log" 2>&1 &
+  ' _ "${FRONTEND_DIR}" "${pm}" "${FRONTEND_PORT}" "http://localhost:${BACKEND_PORT}" >"${LOG_DIR}/frontend.log" 2>&1 &
   echo "$!" >"${PID_DIR}/frontend.pid"
 }
 

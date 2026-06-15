@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.router import build_api_router
+from app.api.router import api_router
 from app.api.routes.health import router as health_router
 from app.core.config import get_settings
 from app.db.mongodb import mongodb
@@ -44,9 +44,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    app.include_router(build_api_router(), prefix="/api")
+    app.include_router(api_router, prefix="/api")
     app.include_router(health_router)
-    app.include_router(build_api_router(), prefix=settings.api_v1_prefix)
+    app.include_router(api_router, prefix=settings.api_v1_prefix)
     return app
 
 

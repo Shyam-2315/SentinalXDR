@@ -33,7 +33,9 @@ def test_demo_event_batch_is_tagged_and_safe() -> None:
 
 def test_demo_api_base_url_normalization() -> None:
     assert normalize_api_base_url("http://localhost:8000") == "http://localhost:8000"
+    assert normalize_api_base_url("http://localhost:8000/") == "http://localhost:8000"
     assert normalize_api_base_url("http://localhost:8000/api") == "http://localhost:8000"
+    assert normalize_api_base_url("http://localhost:8000/api/") == "http://localhost:8000"
     assert normalize_api_base_url("http://localhost:8000/api/v1") == "http://localhost:8000"
     assert normalize_api_base_url("http://localhost:8000/api/v1/") == "http://localhost:8000"
 

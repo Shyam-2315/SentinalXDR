@@ -1277,6 +1277,15 @@ def test_unauthenticated_request_rejected(
         assert resp.status_code == 401, f"{endpoint} should be 401 but got {resp.status_code}"
 
 
+@pytest.mark.parametrize("prefix", ["/api", "/api/v1"])
+def test_dashboard_summary_requires_auth_at_supported_api_prefixes(
+    client: TestClient, prefix: str
+) -> None:
+    resp = client.get(f"{prefix}/dashboard/summary")
+
+    assert resp.status_code == 401
+
+
 def test_cross_org_data_not_leaked(
     client: TestClient, store: DashboardTestStore
 ) -> None:

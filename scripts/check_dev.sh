@@ -8,7 +8,13 @@ MONGO_PORT="${MONGO_PORT:-27017}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 BACKEND_DIR="${ROOT_DIR}/backend"
 LOG_DIR="${ROOT_DIR}/.dev/logs"
-COMPOSE=(docker compose --project-directory "${BACKEND_DIR}" -f "${BACKEND_DIR}/docker-compose.yml")
+COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-backend}"
+COMPOSE=(
+  docker compose
+  --project-name "${COMPOSE_PROJECT_NAME}"
+  --project-directory "${BACKEND_DIR}"
+  -f "${BACKEND_DIR}/docker-compose.yml"
+)
 
 failed=0
 
@@ -28,9 +34,9 @@ tail_log() {
 show_compose_logs() {
   if command -v docker >/dev/null 2>&1; then
     echo "--- compose service status ---"
-    MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" "${COMPOSE[@]}" ps mongo redis || true
+    BACKEND_PORT="${BACKEND_PORT}" MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" "${COMPOSE[@]}" ps mongo redis || true
     echo "--- compose logs tail ---"
-    MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" "${COMPOSE[@]}" logs --tail=80 mongo redis || true
+    BACKEND_PORT="${BACKEND_PORT}" MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" "${COMPOSE[@]}" logs --tail=80 mongo redis || true
     echo "--- end compose logs tail ---"
   fi
 }
@@ -75,13 +81,13 @@ check_url() {
 
 if command -v docker >/dev/null 2>&1; then
   compose_failed=0
-  if MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" "${COMPOSE[@]}" ps --status running mongo 2>/dev/null | grep -q "mongo"; then
+  if BACKEND_PORT="${BACKEND_PORT}" MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" "${COMPOSE[@]}" ps --status running mongo 2>/dev/null | grep -q "mongo"; then
     pass "MongoDB container running"
   else
     fail "MongoDB container running"
     compose_failed=1
   fi
-  if MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" "${COMPOSE[@]}" ps --status running redis 2>/dev/null | grep -q "redis"; then
+  if BACKEND_PORT="${BACKEND_PORT}" MONGO_PORT="${MONGO_PORT}" REDIS_PORT="${REDIS_PORT}" "${COMPOSE[@]}" ps --status running redis 2>/dev/null | grep -q "redis"; then
     pass "Redis container running"
   else
     fail "Redis container running"

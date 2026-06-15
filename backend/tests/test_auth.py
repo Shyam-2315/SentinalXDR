@@ -169,11 +169,12 @@ def test_duplicate_email_rejected(client: TestClient) -> None:
     assert response.status_code == 409
 
 
-def test_login_success(client: TestClient) -> None:
+@pytest.mark.parametrize("prefix", ["/api", "/api/v1"])
+def test_login_success_at_supported_api_prefixes(client: TestClient, prefix: str) -> None:
     registered = register_user(client)
 
     response = client.post(
-        "/api/auth/login",
+        f"{prefix}/auth/login",
         json={"email": "alice@example.com", "password": "password123"},
     )
 

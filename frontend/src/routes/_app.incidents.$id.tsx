@@ -8,6 +8,7 @@ import { fmtRelative, toArray } from "@/lib/format";
 import { SeverityBadge } from "@/components/common/SeverityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { MitreBadges } from "@/components/common/MitreBadges";
+import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,7 +19,7 @@ export const Route = createFileRoute("/_app/incidents/$id")({ component: Inciden
 function IncidentDetail() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
-  const { data } = useQuery({
+  const query = useQuery({
     queryKey: ["incident", id],
     queryFn: () => api.get<Record<string, unknown>>(`/api/incidents/${id}`),
   });
@@ -31,11 +32,11 @@ function IncidentDetail() {
   const [summary, setSummary] = useState("");
   const [assignee, setAssignee] = useState("");
   useEffect(() => {
-    if (data) {
-      setSummary(String(data.summary ?? ""));
-      setAssignee(String(data.assigned_to_user_id ?? ""));
+    if (query.data) {
+      setSummary(String(query.data.summary ?? ""));
+      setAssignee(String(query.data.assigned_to_user_id ?? ""));
     }
-  }, [data]);
+  }, [query.data]);
 
   const updateStatus = useMutation({
     mutationFn: (status: string) => api.patch(`/api/incidents/${id}/status`, { status }),
@@ -62,7 +63,15 @@ function IncidentDetail() {
     },
   });
 
-  const d = data ?? {};
+  if (query.isLoading) {
+    return <LoadingState label="Loading incident" />;
+  }
+
+  if (query.isError) {
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  }
+
+  const d = query.data ?? {};
   const alerts = toArray<Record<string, unknown>>(d.alerts);
   const events = toArray<Record<string, unknown>>(d.events);
   const alertIds = toArray<string>(d.alert_ids);

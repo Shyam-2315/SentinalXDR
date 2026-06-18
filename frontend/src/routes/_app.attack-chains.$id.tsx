@@ -8,6 +8,7 @@ import { fmtDate, fmtRelative, toArray } from "@/lib/format";
 import { SeverityBadge } from "@/components/common/SeverityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { MitreBadges } from "@/components/common/MitreBadges";
+import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_app/attack-chains/$id")({ component: ChainDetail });
@@ -18,7 +19,7 @@ type Edge = { source: string; target: string; label?: string; relationship?: str
 function ChainDetail() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
-  const { data } = useQuery({
+  const query = useQuery({
     queryKey: ["chain", id],
     queryFn: () => api.get<Record<string, unknown>>(`/api/attack-chains/${id}`),
   });
@@ -30,7 +31,15 @@ function ChainDetail() {
     },
   });
 
-  const d = data ?? {};
+  if (query.isLoading) {
+    return <LoadingState label="Loading attack chain" />;
+  }
+
+  if (query.isError) {
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
+  }
+
+  const d = query.data ?? {};
   const graph = (d.graph ?? {}) as Record<string, unknown>;
   const nodes = toArray<Node>(graph.nodes ?? d.nodes);
   const edges = toArray<Edge>(graph.edges ?? d.edges);

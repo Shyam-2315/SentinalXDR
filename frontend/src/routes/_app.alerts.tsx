@@ -9,6 +9,7 @@ import { SeverityBadge } from "@/components/common/SeverityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { MitreBadges } from "@/components/common/MitreBadges";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { JsonViewer } from "@/components/common/JsonViewer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -34,11 +35,11 @@ function AlertsPage() {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Alert | null>(null);
   const selectedId = selected?.id ?? selected?.alert_id ?? "";
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ["alerts"],
     queryFn: () => api.get<unknown>("/api/alerts"),
   });
-  const rows = toArray<Alert>(data);
+  const rows = toArray<Alert>(query.data);
   const detail = useQuery({
     queryKey: ["alert", selectedId],
     queryFn: () => api.get<Alert>(`/api/alerts/${selectedId}`),
@@ -65,8 +66,12 @@ function AlertsPage() {
       </div>
       <Card className="border-border/60 bg-card/60">
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading alerts…</div>
+          {query.isLoading ? (
+            <LoadingState label="Loading alerts" />
+          ) : query.isError ? (
+            <div className="p-6">
+              <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+            </div>
           ) : rows.length === 0 ? (
             <div className="p-6">
               <EmptyState icon={Bell} title="No alerts" />

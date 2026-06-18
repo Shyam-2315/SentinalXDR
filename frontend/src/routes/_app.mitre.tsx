@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { toArray } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState, LoadingState } from "@/components/common/PageState";
 
 export const Route = createFileRoute("/_app/mitre")({ component: MitrePage });
 
@@ -19,11 +20,11 @@ type Technique = {
 };
 
 function MitrePage() {
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ["mitre"],
     queryFn: () => api.get<unknown>("/api/dashboard/mitre-summary"),
   });
-  const rows = toArray<Technique>(data);
+  const rows = normalizeMitre(query.data);
 
   const grouped = rows.reduce<Record<string, Technique[]>>((acc, t) => {
     const k = t.tactic ?? "Uncategorized";
@@ -41,8 +42,10 @@ function MitrePage() {
           Coverage of observed adversary techniques across tactics.
         </p>
       </div>
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+      {query.isLoading ? (
+        <LoadingState label="Loading MITRE summary" />
+      ) : query.isError ? (
+        <ErrorState error={query.error} onRetry={() => void query.refetch()} />
       ) : tactics.length === 0 ? (
         <EmptyState icon={Crosshair} title="No MITRE data" />
       ) : (
@@ -80,5 +83,18 @@ function MitrePage() {
         </div>
       )}
     </div>
+  );
+}
+
+function normalizeMitre(data: unknown): Technique[] {
+  const tactics = toArray<Record<string, unknown>>(data);
+  return tactics.flatMap((tactic) =>
+    toArray<Record<string, unknown>>(tactic.techniques).map((technique) => ({
+      id: String(technique.technique ?? technique.technique_id ?? technique.id ?? "T?"),
+      name: String(technique.technique_name ?? technique.name ?? technique.technique ?? "—"),
+      tactic: String(tactic.tactic ?? technique.tactic ?? "Uncategorized"),
+      count: Number(technique.count ?? 0),
+      severity: String(technique.severity ?? "info"),
+    })),
   );
 }

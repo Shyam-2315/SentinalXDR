@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
             "http://localhost:5173,http://127.0.0.1:5173,"
             "http://localhost:3000,http://127.0.0.1:3000"
         ),
-        alias="CORS_ALLOWED_ORIGINS",
+        validation_alias=AliasChoices("BACKEND_CORS_ORIGINS", "CORS_ALLOWED_ORIGINS"),
     )
 
     @property

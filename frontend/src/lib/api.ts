@@ -1,20 +1,23 @@
 import { toast } from "sonner";
 import { authStore } from "./auth";
 
-const RAW_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8010";
 
 function normalizeBaseUrl(value: string) {
   const url = new URL(value);
-  url.pathname = url.pathname.replace(/\/+$/, "").replace(/\/api\/v1$/, "").replace(/\/api$/, "");
+  url.pathname = url.pathname
+    .replace(/\/+$/, "")
+    .replace(/\/api\/v1$/, "")
+    .replace(/\/api$/, "");
   return url.toString().replace(/\/$/, "");
 }
 
-const BASE_URL = normalizeBaseUrl(RAW_BASE_URL);
+const BASE_URL = normalizeBaseUrl(API_BASE_URL);
 
 export class ApiError extends Error {
   status: number;
   data: unknown;
+  endpoint?: string;
   constructor(status: number, message: string, data?: unknown) {
     super(message);
     this.status = status;
@@ -43,6 +46,26 @@ function buildUrl(path: string, query?: RequestOpts["query"]) {
   return url.toString();
 }
 
+function extractErrorMessage(data: unknown, fallback: string) {
+  if (!data || typeof data !== "object") return fallback;
+  const obj = data as Record<string, unknown>;
+  const detail = obj.detail ?? obj.message ?? obj.error;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) {
+          return String((item as Record<string, unknown>).msg);
+        }
+        return "";
+      })
+      .filter(Boolean)
+      .join("; ");
+  }
+  return fallback;
+}
+
 function onUnauthorized() {
   authStore.clear();
   if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
@@ -52,6 +75,8 @@ function onUnauthorized() {
 
 export async function apiRequest<T = unknown>(path: string, opts: RequestOpts = {}): Promise<T> {
   const { method = "GET", body, query, auth = true, silent, headers = {} } = opts;
+  const finalUrl = buildUrl(path, query);
+  console.log("[API]", method, finalUrl);
   const finalHeaders: Record<string, string> = { Accept: "application/json", ...headers };
   if (body !== undefined && !(body instanceof FormData)) {
     finalHeaders["Content-Type"] = "application/json";
@@ -62,14 +87,17 @@ export async function apiRequest<T = unknown>(path: string, opts: RequestOpts = 
   }
   let res: Response;
   try {
-    res = await fetch(buildUrl(path, query), {
+    res = await fetch(finalUrl, {
       method,
       headers: finalHeaders,
       body: body === undefined ? undefined : body instanceof FormData ? body : JSON.stringify(body),
     });
   } catch (err) {
+    console.error("SentinelXDR API network error", { endpoint: finalUrl, err });
     if (!silent) toast.error("Network error: unable to reach API");
-    throw new ApiError(0, "Network error", err);
+    const apiError = new ApiError(0, "Network error: unable to reach API", err);
+    apiError.endpoint = finalUrl;
+    throw apiError;
   }
 
   if (res.status === 401 && auth) {
@@ -83,13 +111,18 @@ export async function apiRequest<T = unknown>(path: string, opts: RequestOpts = 
     : await res.text().catch(() => null);
 
   if (!res.ok) {
-    const msg =
-      (data && typeof data === "object" && "detail" in (data as Record<string, unknown>)
-        ? String((data as Record<string, unknown>).detail)
-        : null) ?? `Request failed (${res.status})`;
+    const msg = extractErrorMessage(data, `Request failed (${res.status})`);
+    console.error("SentinelXDR API request failed", {
+      endpoint: finalUrl,
+      status: res.status,
+      data,
+    });
     if (!silent) toast.error(msg);
-    throw new ApiError(res.status, msg, data);
+    const apiError = new ApiError(res.status, msg, data);
+    apiError.endpoint = finalUrl;
+    throw apiError;
   }
+  if (res.status === 204 || data === "") return undefined as T;
   return data as T;
 }
 

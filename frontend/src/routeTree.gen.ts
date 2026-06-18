@@ -18,6 +18,7 @@ import { Route as AppMitreRouteImport } from './routes/_app.mitre'
 import { Route as AppIncidentsRouteImport } from './routes/_app.incidents'
 import { Route as AppEventsRouteImport } from './routes/_app.events'
 import { Route as AppDetectionsRouteImport } from './routes/_app.detections'
+import { Route as AppDetectionResultsRouteImport } from './routes/_app.detection-results'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 import { Route as AppAttackChainsRouteImport } from './routes/_app.attack-chains'
 import { Route as AppAlertsRouteImport } from './routes/_app.alerts'
@@ -71,6 +72,11 @@ const AppDetectionsRoute = AppDetectionsRouteImport.update({
   path: '/detections',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDetectionResultsRoute = AppDetectionResultsRouteImport.update({
+  id: '/detection-results',
+  path: '/detection-results',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AppAlertsRoute
   '/attack-chains': typeof AppAttackChainsRouteWithChildren
   '/dashboard': typeof AppDashboardRoute
+  '/detection-results': typeof AppDetectionResultsRoute
   '/detections': typeof AppDetectionsRoute
   '/events': typeof AppEventsRoute
   '/incidents': typeof AppIncidentsRouteWithChildren
@@ -137,6 +144,7 @@ export interface FileRoutesByTo {
   '/agents': typeof AppAgentsRoute
   '/alerts': typeof AppAlertsRoute
   '/dashboard': typeof AppDashboardRoute
+  '/detection-results': typeof AppDetectionResultsRoute
   '/detections': typeof AppDetectionsRoute
   '/events': typeof AppEventsRoute
   '/mitre': typeof AppMitreRoute
@@ -156,6 +164,7 @@ export interface FileRoutesById {
   '/_app/alerts': typeof AppAlertsRoute
   '/_app/attack-chains': typeof AppAttackChainsRouteWithChildren
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/detection-results': typeof AppDetectionResultsRoute
   '/_app/detections': typeof AppDetectionsRoute
   '/_app/events': typeof AppEventsRoute
   '/_app/incidents': typeof AppIncidentsRouteWithChildren
@@ -176,6 +185,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/attack-chains'
     | '/dashboard'
+    | '/detection-results'
     | '/detections'
     | '/events'
     | '/incidents'
@@ -193,6 +203,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/alerts'
     | '/dashboard'
+    | '/detection-results'
     | '/detections'
     | '/events'
     | '/mitre'
@@ -211,6 +222,7 @@ export interface FileRouteTypes {
     | '/_app/alerts'
     | '/_app/attack-chains'
     | '/_app/dashboard'
+    | '/_app/detection-results'
     | '/_app/detections'
     | '/_app/events'
     | '/_app/incidents'
@@ -292,6 +304,13 @@ declare module '@tanstack/react-router' {
       path: '/detections'
       fullPath: '/detections'
       preLoaderRoute: typeof AppDetectionsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/detection-results': {
+      id: '/_app/detection-results'
+      path: '/detection-results'
+      fullPath: '/detection-results'
+      preLoaderRoute: typeof AppDetectionResultsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -386,6 +405,7 @@ interface AppRouteChildren {
   AppAlertsRoute: typeof AppAlertsRoute
   AppAttackChainsRoute: typeof AppAttackChainsRouteWithChildren
   AppDashboardRoute: typeof AppDashboardRoute
+  AppDetectionResultsRoute: typeof AppDetectionResultsRoute
   AppDetectionsRoute: typeof AppDetectionsRoute
   AppEventsRoute: typeof AppEventsRoute
   AppIncidentsRoute: typeof AppIncidentsRouteWithChildren
@@ -398,6 +418,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAlertsRoute: AppAlertsRoute,
   AppAttackChainsRoute: AppAttackChainsRouteWithChildren,
   AppDashboardRoute: AppDashboardRoute,
+  AppDetectionResultsRoute: AppDetectionResultsRoute,
   AppDetectionsRoute: AppDetectionsRoute,
   AppEventsRoute: AppEventsRoute,
   AppIncidentsRoute: AppIncidentsRouteWithChildren,

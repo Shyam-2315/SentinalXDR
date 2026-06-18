@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { toArray, fmtRelative } from "@/lib/format";
 import { SeverityBadge } from "@/components/common/SeverityBadge";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { JsonViewer } from "@/components/common/JsonViewer";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -31,17 +32,26 @@ type Event = {
 function EventsPage() {
   const [q, setQ] = useState("");
   const [sev, setSev] = useState("");
+  const [source, setSource] = useState("");
+  const [eventType, setEventType] = useState("");
+  const [agentId, setAgentId] = useState("");
   const [selected, setSelected] = useState<Event | null>(null);
   const selectedId = selected?.id ?? selected?.event_id ?? "";
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["events", q, sev],
+  const query = useQuery({
+    queryKey: ["events", q, sev, source, eventType, agentId],
     queryFn: () =>
       api.get<unknown>("/api/events", {
-        query: { search: q || undefined, severity: sev || undefined },
+        query: {
+          search: q || undefined,
+          severity: sev || undefined,
+          source: source || undefined,
+          event_type: eventType || undefined,
+          agent_id: agentId || undefined,
+        },
       }),
   });
-  const rows = toArray<Event>(data);
+  const rows = toArray<Event>(query.data);
   const detail = useQuery({
     queryKey: ["event", selectedId],
     queryFn: () => api.get<Event>(`/api/events/${selectedId}`),
@@ -76,11 +86,33 @@ function EventsPage() {
           <option value="low">Low</option>
           <option value="info">Info</option>
         </select>
+        <Input
+          placeholder="Source"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          className="max-w-[10rem]"
+        />
+        <Input
+          placeholder="Event type"
+          value={eventType}
+          onChange={(e) => setEventType(e.target.value)}
+          className="max-w-[12rem]"
+        />
+        <Input
+          placeholder="Agent ID"
+          value={agentId}
+          onChange={(e) => setAgentId(e.target.value)}
+          className="max-w-[14rem]"
+        />
       </div>
       <Card className="border-border/60 bg-card/60">
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading events…</div>
+          {query.isLoading ? (
+            <LoadingState label="Loading events" />
+          ) : query.isError ? (
+            <div className="p-6">
+              <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+            </div>
           ) : rows.length === 0 ? (
             <div className="p-6">
               <EmptyState icon={Activity} title="No events found" />

@@ -111,8 +111,9 @@ Register and login return a frontend-friendly payload:
 }
 ```
 
-The first registered user creates an organization and becomes `ORG_ADMIN`.
-Additional users must register with an existing `organization_id`.
+Register with `organization_name` to create a new organization; that first user
+becomes `ORG_ADMIN`. Register with `organization_id` to join an existing
+organization as a default non-admin user.
 
 Agent registration requires a bearer token for `SUPER_ADMIN`, `ORG_ADMIN`, or
 `ANALYST`. It returns the plaintext `api_key` only once:

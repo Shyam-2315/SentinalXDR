@@ -1,4 +1,4 @@
-.PHONY: dev stop check backend-test frontend-test demo-seed demo-smoke
+.PHONY: dev stop check backend-test frontend-test demo-seed demo-smoke docker-up docker-up-detached docker-down docker-logs docker-reset docker-seed docker-smoke
 
 dev:
 	./scripts/start_dev.sh
@@ -20,3 +20,24 @@ demo-seed:
 
 demo-smoke:
 	python3 scripts/demo_smoke_check.py
+
+docker-up:
+	docker compose up --build
+
+docker-up-detached:
+	docker compose up --build -d
+
+docker-down:
+	docker compose down
+
+docker-logs:
+	docker compose logs -f
+
+docker-reset:
+	docker compose down -v
+
+docker-seed:
+	python3 scripts/demo_seed.py --api-base-url http://localhost:8010
+
+docker-smoke:
+	python3 scripts/demo_smoke_check.py --api-base-url http://localhost:8010

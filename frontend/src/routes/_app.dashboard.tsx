@@ -17,6 +17,7 @@ import { SeverityBadge } from "@/components/common/SeverityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { MitreBadges } from "@/components/common/MitreBadges";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_app/dashboard")({
@@ -59,15 +60,35 @@ function DashboardPage() {
   const p = posture.data ?? {};
   const trendData = normalizeTrend(trends.data);
   const mitreData = normalizeMitre(mitre.data);
+  const dashboardError =
+    summary.error ??
+    posture.error ??
+    alerts.error ??
+    incidents.error ??
+    chains.error ??
+    mitre.error ??
+    trends.error ??
+    agents.error;
+
+  function retryAll() {
+    void summary.refetch();
+    void posture.refetch();
+    void alerts.refetch();
+    void incidents.refetch();
+    void chains.refetch();
+    void mitre.refetch();
+    void trends.refetch();
+    void agents.refetch();
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">SOC Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          Live posture across telemetry, detections, and active threats.
-        </p>
+        <h1 className="text-xl font-semibold tracking-tight">SentinelXDR Command Center</h1>
+        <p className="text-sm text-muted-foreground">AI-powered XDR/SOC monitoring</p>
       </div>
+
+      {dashboardError ? <ErrorState error={dashboardError} onRetry={retryAll} /> : null}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
         <MetricCard
@@ -97,6 +118,13 @@ function DashboardPage() {
           loading={summary.isLoading}
         />
         <MetricCard
+          label="Critical Alerts"
+          value={s.critical_alerts ?? 0}
+          tone="critical"
+          icon={Flame}
+          loading={summary.isLoading}
+        />
+        <MetricCard
           label="Open Incidents"
           value={s.open_incidents ?? 0}
           tone="critical"
@@ -108,13 +136,6 @@ function DashboardPage() {
           value={s.active_attack_chains ?? 0}
           tone="critical"
           icon={GitBranch}
-          loading={summary.isLoading}
-        />
-        <MetricCard
-          label="Critical Alerts"
-          value={s.critical_alerts ?? 0}
-          tone="critical"
-          icon={Flame}
           loading={summary.isLoading}
         />
         <MetricCard
@@ -133,7 +154,11 @@ function DashboardPage() {
           </CardHeader>
           <CardContent className="h-64 p-2">
             {trendData.length === 0 ? (
-              <EmptyState title="No trend data" />
+              trends.isLoading ? (
+                <LoadingState label="Loading trend data" />
+              ) : (
+                <EmptyState title="No trend data" />
+              )
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trendData}>
@@ -243,7 +268,11 @@ function DashboardPage() {
           </CardHeader>
           <CardContent>
             {mitreData.length === 0 ? (
-              <EmptyState title="No MITRE coverage yet" />
+              mitre.isLoading ? (
+                <LoadingState label="Loading MITRE data" />
+              ) : (
+                <EmptyState title="No MITRE coverage yet" />
+              )
             ) : (
               <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
                 {mitreData.slice(0, 12).map((t, i) => (

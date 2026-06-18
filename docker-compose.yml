@@ -1,0 +1,89 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: sentinelxdr-mongo
+    ports:
+      - "27018:27017"
+    volumes:
+      - sentinelxdr_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: sentinelxdr-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - sentinelxdr_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  backend:
+    build:
+      context: ./backend
+    container_name: sentinelxdr-backend
+    ports:
+      - "8010:8010"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      REDIS_URL: redis://redis:6379/0
+      APP_NAME: SentinelXDR API
+      APP_VERSION: 0.1.0
+      ENVIRONMENT: local
+      DEBUG: "true"
+      JWT_SECRET_KEY: change-me-in-production-minimum-32-chars
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      EVENT_INGEST_BATCH_SIZE_LIMIT: "100"
+      INCIDENT_CORRELATION_WINDOW_MINUTES: "30"
+      BACKEND_CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8010", "--reload"]
+    volumes:
+      - ./backend:/app
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8010/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: sentinelxdr-frontend
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      VITE_API_BASE_URL: http://localhost:8010
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "8080"]
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  sentinelxdr_mongo_data:
+  sentinelxdr_redis_data:

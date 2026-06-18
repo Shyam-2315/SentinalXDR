@@ -58,6 +58,17 @@ async def register(
     users: Annotated[UserRepository, Depends(get_user_repository)],
     organizations: Annotated[OrganizationRepository, Depends(get_organization_repository)],
 ) -> AuthResponse:
+    if payload.organization_name is not None and payload.organization_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Provide either organization_name or organization_id, not both.",
+        )
+    if payload.organization_name is None and payload.organization_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="organization_name or organization_id is required.",
+        )
+
     existing_user = await users.find_by_email(payload.email)
     if existing_user is not None:
         raise HTTPException(
@@ -65,18 +76,12 @@ async def register(
             detail="Email is already registered",
         )
 
-    is_first_user = await users.count() == 0
-    if is_first_user:
+    if payload.organization_name is not None:
         organization = await organizations.create(
-            name=payload.organization_name or "SentinelXDR Organization",
+            name=payload.organization_name,
         )
         role = Role.ORG_ADMIN
     else:
-        if payload.organization_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="organization_id is required after the first user is registered",
-            )
         organization = await organizations.find_by_id(payload.organization_id)
         if organization is None:
             raise HTTPException(

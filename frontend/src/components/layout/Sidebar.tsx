@@ -18,6 +18,7 @@ const nav = [
   { to: "/agents", label: "Agents", icon: Server },
   { to: "/events", label: "Events", icon: Activity },
   { to: "/detections", label: "Detection Rules", icon: ShieldAlert },
+  { to: "/detection-results", label: "Detection Results", icon: ShieldAlert },
   { to: "/alerts", label: "Alerts", icon: Bell },
   { to: "/incidents", label: "Incidents", icon: AlertOctagon },
   { to: "/attack-chains", label: "Attack Chains", icon: GitBranch },

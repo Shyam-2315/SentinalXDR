@@ -29,6 +29,9 @@ class FakeOrganizationRepository:
     def __init__(self, store: AuthStore) -> None:
         self.store = store
 
+    async def count(self) -> int:
+        return len(self.store.organizations)
+
     async def create(self, name: str) -> Organization:
         now = datetime.now(UTC)
         organization = Organization(
@@ -122,6 +125,7 @@ def register_user(
     *,
     email: str = "alice@example.com",
     password: str = "password123",
+    organization_name: str | None = "Acme Security",
     organization_id: str | None = None,
 ) -> dict:
     payload = {
@@ -129,9 +133,9 @@ def register_user(
         "password": password,
         "display_name": "Alice Analyst",
     }
-    if organization_id is None:
-        payload["organization_name"] = "Acme Security"
-    else:
+    if organization_name is not None:
+        payload["organization_name"] = organization_name
+    if organization_id is not None:
         payload["organization_id"] = organization_id
 
     response = client.post("/api/auth/register", json=payload)
@@ -139,7 +143,24 @@ def register_user(
     return response.json()
 
 
-def test_register_success(client: TestClient, store: AuthStore) -> None:
+def stale_user(store: AuthStore) -> User:
+    now = datetime.now(UTC)
+    user = User(
+        id=f"usr_{uuid4().hex}",
+        organization_id="org_missing",
+        email="stale@example.com",
+        display_name="Stale User",
+        role=Role.VIEWER,
+        status=UserStatus.ACTIVE,
+        hashed_password="hashed",
+        created_at=now,
+        updated_at=now,
+    )
+    store.users[user.id] = user
+    return user
+
+
+def test_register_no_users_no_orgs_creates_org(client: TestClient, store: AuthStore) -> None:
     body = register_user(client)
 
     assert body["token_type"] == "bearer"
@@ -151,6 +172,113 @@ def test_register_success(client: TestClient, store: AuthStore) -> None:
 
     stored_user = next(iter(store.users.values()))
     assert stored_user.hashed_password != "password123"
+
+
+def test_register_second_organization_succeeds(client: TestClient) -> None:
+    first = register_user(client)
+
+    second = register_user(
+        client,
+        email="bob@example.com",
+        organization_name="Beta Security",
+    )
+
+    assert second["organization"]["name"] == "Beta Security"
+    assert second["organization"]["id"] != first["organization"]["id"]
+    assert second["user"]["organization_id"] == second["organization"]["id"]
+    assert second["user"]["role"] == Role.ORG_ADMIN
+
+
+def test_first_user_of_each_new_org_becomes_org_admin(client: TestClient) -> None:
+    first = register_user(client)
+    second = register_user(
+        client,
+        email="bob@example.com",
+        organization_name="Beta Security",
+    )
+
+    assert first["user"]["role"] == Role.ORG_ADMIN
+    assert second["user"]["role"] == Role.ORG_ADMIN
+
+
+def test_register_stale_user_no_orgs_still_creates_org(
+    client: TestClient,
+    store: AuthStore,
+) -> None:
+    stale_user(store)
+
+    body = register_user(client)
+
+    assert body["user"]["role"] == Role.ORG_ADMIN
+    assert body["organization"]["name"] == "Acme Security"
+    assert body["organization"]["id"] in store.organizations
+
+
+def test_register_without_organization_name_or_id_rejected(client: TestClient) -> None:
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": "bob@example.com",
+            "password": "password123",
+            "display_name": "Bob Analyst",
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "organization_name or organization_id is required."
+
+
+def test_register_org_exists_valid_organization_id_joins_org(client: TestClient) -> None:
+    admin = register_user(client)
+
+    body = register_user(
+        client,
+        email="bob@example.com",
+        organization_name=None,
+        organization_id=admin["organization"]["id"],
+    )
+
+    assert body["user"]["role"] == Role.VIEWER
+    assert body["user"]["organization_id"] == admin["organization"]["id"]
+    assert body["organization"]["id"] == admin["organization"]["id"]
+
+
+def test_register_org_exists_invalid_organization_id_rejected(client: TestClient) -> None:
+    register_user(client)
+
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": "bob@example.com",
+            "password": "password123",
+            "display_name": "Bob Analyst",
+            "organization_id": "org_missing",
+        },
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Organization not found"
+
+
+def test_register_with_organization_name_and_id_rejected(client: TestClient) -> None:
+    register_user(client)
+
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": "bob@example.com",
+            "password": "password123",
+            "display_name": "Bob Analyst",
+            "organization_name": "Another Organization",
+            "organization_id": "org_any",
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "Provide either organization_name or organization_id, not both."
+    )
 
 
 def test_duplicate_email_rejected(client: TestClient) -> None:
@@ -277,6 +405,7 @@ def test_rbac_role_dependency_works(client: TestClient) -> None:
     viewer = register_user(
         client,
         email="viewer@example.com",
+        organization_name=None,
         organization_id=org_admin["organization"]["id"],
     )
 

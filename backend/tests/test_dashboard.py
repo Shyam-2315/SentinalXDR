@@ -62,6 +62,9 @@ class FakeOrganizationRepository:
     def __init__(self, store: DashboardTestStore) -> None:
         self.store = store
 
+    async def count(self) -> int:
+        return len(self.store.organizations)
+
     async def find_by_id(self, organization_id: str) -> Organization | None:
         return self.store.organizations.get(organization_id)
 

@@ -2,6 +2,44 @@
 
 SentinelXDR is a local-first XDR/SOC platform demo with FastAPI backend, MongoDB, Redis, Linux agent MVP, safe attack simulation lab, and a Lovable-generated React frontend integrated with real backend APIs.
 
+## Docker Compose Startup
+
+Start the full local stack:
+
+```bash
+docker compose up --build
+```
+
+Then open:
+
+- Frontend: `http://localhost:8080`
+- Backend: `http://localhost:8010`
+- Swagger: `http://localhost:8010/docs`
+
+Seed demo data:
+
+```bash
+python3 scripts/demo_seed.py --api-base-url http://localhost:8010
+```
+
+Stop:
+
+```bash
+docker compose down
+```
+
+Reset all Docker data:
+
+```bash
+docker compose down -v
+```
+
+Docker uses host ports `8010` for the backend, `8080` for the frontend, `27018` for MongoDB, and `6380` for Redis. Stop older local containers or manual services that use ports `8000`, `27017`, `6379`, or `8080` before starting the stack. If `8080` is busy, run the frontend on another host port:
+
+```bash
+FRONTEND_PORT=5174 docker compose up --build
+```
+
 ## One-Command Local Dev
 
 Requirements:
@@ -45,6 +83,29 @@ URLs:
 - Frontend: `http://localhost:5173`
 - Backend: `http://localhost:8000`
 - Swagger: `http://localhost:8000/docs`
+
+## Manual Dev/Demo Startup
+
+For a lightweight manual startup that runs the backend/frontend on the host and starts MongoDB/Redis with Docker Compose:
+
+```bash
+chmod +x scripts/run_sentinelxdr.sh scripts/stop_sentinelxdr.sh
+./scripts/run_sentinelxdr.sh
+./scripts/stop_sentinelxdr.sh
+```
+
+Manual URLs:
+
+- Frontend: `http://localhost:8080`
+- Backend: `http://localhost:8010`
+- Swagger: `http://localhost:8010/docs`
+
+Manual dependency ports:
+
+- MongoDB: `mongodb://localhost:27018`
+- Redis: `redis://localhost:6380/0`
+
+The manual script waits for `http://localhost:8010/health/live`, `/health/db`, and `/health/redis` before starting the frontend. If MongoDB or Redis health checks fail, inspect `.dev/logs/backend.log` and `.dev/logs/compose.log`.
 
 ## Demo Flow
 

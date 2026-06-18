@@ -9,6 +9,7 @@ import { SeverityBadge } from "@/components/common/SeverityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { MitreBadges } from "@/components/common/MitreBadges";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +51,7 @@ type DetectionResult = {
 
 function DetectionsPage() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ["detections", "rules"],
     queryFn: () => api.get<unknown>("/api/detections/rules"),
   });
@@ -58,7 +59,7 @@ function DetectionsPage() {
     queryKey: ["detections", "results"],
     queryFn: () => api.get<unknown>("/api/detections/results"),
   });
-  const rows = toArray<Rule>(data);
+  const rows = toArray<Rule>(query.data);
   const resultRows = toArray<DetectionResult>(results.data);
 
   const toggle = useMutation({
@@ -85,8 +86,12 @@ function DetectionsPage() {
       </div>
       <Card className="border-border/60 bg-card/60">
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading rules…</div>
+          {query.isLoading ? (
+            <LoadingState label="Loading rules" />
+          ) : query.isError ? (
+            <div className="p-6">
+              <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+            </div>
           ) : rows.length === 0 ? (
             <div className="p-6">
               <EmptyState icon={ShieldAlert} title="No detection rules" />
@@ -154,7 +159,11 @@ function DetectionsPage() {
             </p>
           </div>
           {results.isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading results…</div>
+            <LoadingState label="Loading results" />
+          ) : results.isError ? (
+            <div className="p-6">
+              <ErrorState error={results.error} onRetry={() => void results.refetch()} />
+            </div>
           ) : resultRows.length === 0 ? (
             <div className="p-6">
               <EmptyState title="No detection results" />

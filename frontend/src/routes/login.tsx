@@ -1,7 +1,9 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
-import { Shield } from "lucide-react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Shield, Wifi, WifiOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { api, BASE_URL } from "@/lib/api";
+import { getErrorMessage } from "@/lib/page-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,15 +19,45 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [health, setHealth] = useState<"checking" | "online" | "offline">("checking");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function checkHealth() {
+      setHealth("checking");
+      try {
+        await Promise.all([
+          api.get("/health/live", { auth: false, silent: true }),
+          api.get("/health/ready", { auth: false, silent: true }),
+        ]);
+        if (!cancelled) setHealth("online");
+      } catch {
+        if (!cancelled) setHealth("offline");
+      }
+    }
+    void checkHealth();
+    const id = window.setInterval(() => void checkHealth(), 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
+    setError(null);
     try {
       await login(email, password);
       void navigate({ to: "/dashboard" });
-    } catch {
-      // toast handled by api
+    } catch (err) {
+      const message = getErrorMessage(err);
+      setError(
+        message.toLowerCase().includes("invalid")
+          ? "Invalid credentials or demo data not seeded. Run: python3 scripts/demo_seed.py --api-base-url http://localhost:8010"
+          : message,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -50,6 +82,37 @@ function LoginPage() {
               <h2 className="text-xl font-semibold">Sign in</h2>
               <p className="text-sm text-muted-foreground">Operator access to the SOC console.</p>
             </div>
+            <div className="flex items-center justify-between rounded-md border border-border/60 bg-background/40 px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Backend</span>
+              <span
+                className={
+                  health === "online"
+                    ? "inline-flex items-center gap-1 text-emerald-300"
+                    : health === "offline"
+                      ? "inline-flex items-center gap-1 text-[color:var(--sev-critical)]"
+                      : "inline-flex items-center gap-1 text-muted-foreground"
+                }
+              >
+                {health === "online" ? (
+                  <Wifi className="h-3.5 w-3.5" />
+                ) : (
+                  <WifiOff className="h-3.5 w-3.5" />
+                )}
+                {health === "checking" ? "Checking" : health === "online" ? "Online" : "Offline"}
+              </span>
+            </div>
+            {health === "offline" ? (
+              <p className="rounded-md border border-[color:var(--sev-critical)]/30 bg-[color:var(--sev-critical)]/10 p-2 text-xs text-[color:var(--sev-critical)]">
+                Start backend with BACKEND_PORT=8010 FRONTEND_PORT=5174 MONGO_PORT=27018
+                REDIS_PORT=6380 make dev
+              </p>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              Use demo credentials printed by demo_seed.py
+            </p>
+            {import.meta.env.DEV ? (
+              <p className="text-xs text-muted-foreground">API: {BASE_URL}</p>
+            ) : null}
             <form onSubmit={onSubmit} className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>
@@ -77,6 +140,11 @@ function LoginPage() {
                 {submitting ? "Signing in…" : "Sign in"}
               </Button>
             </form>
+            {error ? (
+              <p className="rounded-md border border-[color:var(--sev-critical)]/40 bg-[color:var(--sev-critical)]/10 p-2 text-xs text-[color:var(--sev-critical)]">
+                {error}
+              </p>
+            ) : null}
             <p className="text-center text-xs text-muted-foreground">
               No account?{" "}
               <Link to="/register" className="text-primary hover:underline">

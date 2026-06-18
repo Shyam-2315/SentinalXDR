@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { toArray, fmtRelative } from "@/lib/format";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,11 +38,11 @@ type Agent = {
 
 function AgentsPage() {
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ["agents"],
     queryFn: () => api.get<unknown>("/api/agents"),
   });
-  const rows = toArray<Agent>(data);
+  const rows = toArray<Agent>(query.data);
 
   const disable = useMutation({
     mutationFn: (id: string) => api.post(`/api/agents/${id}/disable`),
@@ -66,8 +67,12 @@ function AgentsPage() {
       </div>
       <Card className="border-border/60 bg-card/60">
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading agents…</div>
+          {query.isLoading ? (
+            <LoadingState label="Loading agents" />
+          ) : query.isError ? (
+            <div className="p-6">
+              <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+            </div>
           ) : rows.length === 0 ? (
             <div className="p-6">
               <EmptyState

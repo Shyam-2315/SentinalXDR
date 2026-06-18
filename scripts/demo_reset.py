@@ -62,19 +62,15 @@ def main() -> int:
 
 
 def reset_demo_data(db: Any) -> dict[str, int]:
-    demo_events = list(
-        db.events.find(
-            {
-                "$or": [
-                    {"tags": DEMO_TAG},
-                    {"raw_event.marker": DEMO_TAG},
-                    {"raw_event.demo": True},
-                ]
-            },
-            {"id": 1, "agent_id": 1},
-        )
+    demo_users = list(
+        db.users.find({"email": DEMO_EMAIL.lower()}, {"id": 1, "organization_id": 1})
     )
-    event_ids = [item["id"] for item in demo_events if "id" in item]
+    user_ids = ids_for(demo_users)
+    candidate_organization_ids = {
+        item["organization_id"] for item in demo_users if "organization_id" in item
+    }
+    demo_orgs = list(db.organizations.find({"name": DEMO_ORGANIZATION}, {"id": 1}))
+    candidate_organization_ids.update(ids_for(demo_orgs))
 
     demo_agents = list(
         db.agents.find(
@@ -88,16 +84,32 @@ def reset_demo_data(db: Any) -> dict[str, int]:
             {"id": 1},
         )
     )
-    agent_ids = [item["id"] for item in demo_agents if "id" in item]
+    agent_ids = ids_for(demo_agents)
 
-    demo_users = list(db.users.find({"email": DEMO_EMAIL.lower()}, {"id": 1, "organization_id": 1}))
-    user_ids = [item["id"] for item in demo_users if "id" in item]
-    organization_ids = [item["organization_id"] for item in demo_users if "organization_id" in item]
-    demo_orgs = list(db.organizations.find({"name": DEMO_ORGANIZATION}, {"id": 1}))
-    organization_ids.extend(item["id"] for item in demo_orgs if "id" in item)
+    demo_events = list(
+        db.events.find(
+            {
+                "$or": [
+                    {"tags": DEMO_TAG},
+                    {"raw_event.marker": DEMO_TAG},
+                    {"raw_event.demo": True},
+                ]
+            },
+            {"id": 1, "agent_id": 1},
+        )
+    )
+    event_ids = ids_for(demo_events)
 
     detection_ids = ids_for(
-        db.detection_results.find({"event_id": {"$in": event_ids}}, {"id": 1})
+        db.detection_results.find(
+            {
+                "$or": [
+                    {"event_id": {"$in": event_ids}},
+                    {"agent_id": {"$in": agent_ids}},
+                ]
+            },
+            {"id": 1},
+        )
     )
     alert_ids = ids_for(
         db.alerts.find(
@@ -105,6 +117,7 @@ def reset_demo_data(db: Any) -> dict[str, int]:
                 "$or": [
                     {"event_id": {"$in": event_ids}},
                     {"detection_result_id": {"$in": detection_ids}},
+                    {"agent_id": {"$in": agent_ids}},
                     {"tags": DEMO_TAG},
                 ]
             },
@@ -117,6 +130,7 @@ def reset_demo_data(db: Any) -> dict[str, int]:
                 "$or": [
                     {"event_ids": {"$in": event_ids}},
                     {"alert_ids": {"$in": alert_ids}},
+                    {"detection_result_ids": {"$in": detection_ids}},
                     {"agent_ids": {"$in": agent_ids}},
                     {"tags": DEMO_TAG},
                 ]
@@ -131,6 +145,7 @@ def reset_demo_data(db: Any) -> dict[str, int]:
             "$or": [
                 {"event_ids": {"$in": event_ids}},
                 {"alert_ids": {"$in": alert_ids}},
+                {"detection_result_ids": {"$in": detection_ids}},
                 {"incident_id": {"$in": incident_ids}},
                 {"agent_ids": {"$in": agent_ids}},
             ]
@@ -144,6 +159,16 @@ def reset_demo_data(db: Any) -> dict[str, int]:
     summary["events"] = db.events.delete_many({"id": {"$in": event_ids}}).deleted_count
     summary["agents"] = db.agents.delete_many({"id": {"$in": agent_ids}}).deleted_count
     summary["users"] = db.users.delete_many({"id": {"$in": user_ids}}).deleted_count
+    organization_ids = safe_demo_organization_ids(
+        db,
+        organization_ids=list(candidate_organization_ids),
+        user_ids=user_ids,
+        agent_ids=agent_ids,
+        event_ids=event_ids,
+        detection_ids=detection_ids,
+        alert_ids=alert_ids,
+        incident_ids=incident_ids,
+    )
     summary["organizations"] = db.organizations.delete_many(
         {"id": {"$in": organization_ids}, "name": DEMO_ORGANIZATION}
     ).deleted_count
@@ -152,6 +177,73 @@ def reset_demo_data(db: Any) -> dict[str, int]:
 
 def ids_for(cursor: Any) -> list[str]:
     return [item["id"] for item in cursor if "id" in item]
+
+
+def safe_demo_organization_ids(
+    db: Any,
+    *,
+    organization_ids: list[str],
+    user_ids: list[str],
+    agent_ids: list[str],
+    event_ids: list[str],
+    detection_ids: list[str],
+    alert_ids: list[str],
+    incident_ids: list[str],
+) -> list[str]:
+    safe_ids: list[str] = []
+    for organization_id in organization_ids:
+        if not has_non_demo_records(
+            db,
+            organization_id=organization_id,
+            user_ids=user_ids,
+            agent_ids=agent_ids,
+            event_ids=event_ids,
+            detection_ids=detection_ids,
+            alert_ids=alert_ids,
+            incident_ids=incident_ids,
+        ):
+            safe_ids.append(organization_id)
+    return safe_ids
+
+
+def has_non_demo_records(
+    db: Any,
+    *,
+    organization_id: str,
+    user_ids: list[str],
+    agent_ids: list[str],
+    event_ids: list[str],
+    detection_ids: list[str],
+    alert_ids: list[str],
+    incident_ids: list[str],
+) -> bool:
+    checks = [
+        (db.users, user_ids),
+        (db.agents, agent_ids),
+        (db.events, event_ids),
+        (db.detection_results, detection_ids),
+        (db.alerts, alert_ids),
+        (db.incidents, incident_ids),
+    ]
+    for collection, demo_ids in checks:
+        if collection.count_documents(
+            {"organization_id": organization_id, "id": {"$nin": demo_ids}},
+        ):
+            return True
+
+    if db.attack_chains.count_documents(
+        {
+            "organization_id": organization_id,
+            "incident_id": {"$nin": incident_ids},
+            "event_ids": {"$nin": event_ids},
+            "alert_ids": {"$nin": alert_ids},
+            "detection_result_ids": {"$nin": detection_ids},
+            "agent_ids": {"$nin": agent_ids},
+        },
+    ):
+        return True
+
+    return bool(db.detection_rules.count_documents({"organization_id": organization_id}))
 
 
 if __name__ == "__main__":

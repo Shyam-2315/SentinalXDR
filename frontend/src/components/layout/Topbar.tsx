@@ -13,9 +13,10 @@ import {
 import { Input } from "@/components/ui/input";
 
 export function Topbar() {
-  const { user, logout } = useAuth();
+  const { user, organization, logout } = useAuth();
   const [q, setQ] = useState("");
-  const initial = (user?.full_name || user?.username || user?.email || "U").charAt(0).toUpperCase();
+  const displayName = user?.display_name || user?.full_name || user?.username || user?.email;
+  const initial = (displayName || "U").charAt(0).toUpperCase();
   return (
     <header className="flex h-14 items-center justify-between gap-4 border-b border-border/60 bg-background/80 px-4 backdrop-blur">
       <div className="relative w-full max-w-md">
@@ -28,6 +29,12 @@ export function Topbar() {
         />
       </div>
       <div className="flex items-center gap-3">
+        <div className="hidden text-right md:block">
+          <p className="text-xs font-medium text-foreground">{user?.email ?? "Operator"}</p>
+          <p className="text-[11px] text-muted-foreground">
+            {String(user?.role ?? "role")} · {organization?.name ?? "No organization"}
+          </p>
+        </div>
         <div className="hidden items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-300 md:flex">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
           Live
@@ -38,11 +45,16 @@ export function Topbar() {
               <div className="grid h-7 w-7 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
                 {initial}
               </div>
-              <span className="hidden text-sm md:inline">{user?.email ?? "Operator"}</span>
+              <span className="hidden text-sm md:inline">Account</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuLabel>{user?.full_name ?? user?.username ?? "Account"}</DropdownMenuLabel>
+            <DropdownMenuLabel>
+              <span className="block">{displayName ?? "Account"}</span>
+              <span className="block text-xs font-normal text-muted-foreground">
+                {organization?.name ?? "No organization"}
+              </span>
+            </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <a href="/settings">

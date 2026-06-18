@@ -7,6 +7,7 @@ import { SeverityBadge } from "@/components/common/SeverityBadge";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { MitreBadges } from "@/components/common/MitreBadges";
 import { EmptyState } from "@/components/common/EmptyState";
+import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_app/attack-chains/")({ component: ChainsList });
@@ -24,11 +25,11 @@ type Chain = {
 };
 
 function ChainsList() {
-  const { data, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ["chains"],
     queryFn: () => api.get<unknown>("/api/attack-chains"),
   });
-  const rows = toArray<Chain>(data);
+  const rows = toArray<Chain>(query.data);
   return (
     <div className="space-y-4">
       <div>
@@ -39,8 +40,12 @@ function ChainsList() {
       </div>
       <Card className="border-border/60 bg-card/60">
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+          {query.isLoading ? (
+            <LoadingState label="Loading attack chains" />
+          ) : query.isError ? (
+            <div className="p-6">
+              <ErrorState error={query.error} onRetry={() => void query.refetch()} />
+            </div>
           ) : rows.length === 0 ? (
             <div className="p-6">
               <EmptyState icon={GitBranch} title="No attack chains" />

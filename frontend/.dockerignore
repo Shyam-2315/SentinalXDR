@@ -7,6 +7,3 @@ dist
 .git
 .env.local
 .dev
-*.pyc
-.env
-htmlcov

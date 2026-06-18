@@ -10,6 +10,9 @@ class OrganizationRepository:
     def __init__(self, database: AsyncIOMotorDatabase) -> None:
         self.collection = database["organizations"]
 
+    async def count(self) -> int:
+        return await self.collection.count_documents({})
+
     async def create(self, name: str) -> Organization:
         now = datetime.now(UTC)
         organization = Organization(

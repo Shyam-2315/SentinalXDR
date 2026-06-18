@@ -56,6 +56,9 @@ class FakeOrganizationRepository:
     def __init__(self, store: EventTestStore) -> None:
         self.store = store
 
+    async def count(self) -> int:
+        return len(self.store.organizations)
+
     async def create(self, name: str) -> Organization:
         organization = create_organization(self.store, name=name)
         return organization

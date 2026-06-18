@@ -53,4 +53,7 @@ export const sentinelApi = {
   incidentAttackChain: (incidentId: string) => api.get(`/api/incidents/${incidentId}/attack-chain`),
   updateAttackChainStatus: (chainId: string, status: string) =>
     api.patch(`/api/attack-chains/${chainId}/status`, { status }),
+
+  auditLogs: (query = "") => api.get(`/api/audit${query}`),
+  auditLog: (auditId: string) => api.get(`/api/audit/${auditId}`),
 };

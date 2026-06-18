@@ -1,8 +1,8 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
-from app.api.dependencies import get_attack_chain_repository, require_roles
+from app.api.dependencies import get_attack_chain_repository, get_audit_service, require_roles
 from app.models.attack_chain import AttackChain, AttackChainStatus
 from app.models.auth import Role
 from app.models.event import EventSeverity
@@ -13,6 +13,7 @@ from app.schemas.attack_chains import (
     AttackChainRead,
     AttackChainStatusUpdate,
 )
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/attack-chains", tags=["attack-chains"])
 incident_router = APIRouter(prefix="/incidents", tags=["attack-chains"])
@@ -74,8 +75,10 @@ async def get_attack_chain(
 async def update_attack_chain_status(
     chain_id: str,
     payload: AttackChainStatusUpdate,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*UPDATE_ROLES))],
     chains: Annotated[AttackChainRepository, Depends(get_attack_chain_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> AttackChainRead:
     chain = await chains.update_status(
         chain_id=chain_id,
@@ -84,6 +87,15 @@ async def update_attack_chain_status(
     )
     if chain is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attack chain not found")
+    await audit.log(
+        action="attack_chain.status_update",
+        resource_type="attack_chain",
+        resource_id=chain.id,
+        description="Attack chain status updated",
+        request=request,
+        current_user=current_user,
+        metadata={"status": chain.status.value, "incident_id": chain.incident_id},
+    )
     return to_attack_chain_read(chain)
 
 

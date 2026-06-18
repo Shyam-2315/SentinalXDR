@@ -1,0 +1,96 @@
+name: sentinelxdr-prod
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: sentinelxdr-prod-nginx
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    container_name: sentinelxdr-prod-backend
+    environment:
+      APP_NAME: SentinelXDR API
+      APP_VERSION: 0.1.0
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DEBUG: ${DEBUG:-false}
+      EXPOSE_API_DOCS: ${EXPOSE_API_DOCS:-false}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-replace-this-with-a-64-character-random-production-secret}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/sentinelxdr}
+      MONGODB_DATABASE: ${MONGODB_DATABASE:-sentinelxdr}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost}
+      EVENT_INGEST_BATCH_SIZE_LIMIT: ${EVENT_INGEST_BATCH_SIZE_LIMIT:-100}
+      INCIDENT_CORRELATION_WINDOW_MINUTES: ${INCIDENT_CORRELATION_WINDOW_MINUTES:-30}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8010"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_BASE_URL: ${FRONTEND_PUBLIC_URL:-http://localhost}
+    container_name: sentinelxdr-prod-frontend
+    expose:
+      - "80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    container_name: sentinelxdr-prod-mongo
+    volumes:
+      - sentinelxdr_prod_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: sentinelxdr-prod-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - sentinelxdr_prod_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  sentinelxdr_prod_mongo_data:
+  sentinelxdr_prod_redis_data:

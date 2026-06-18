@@ -1,6 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Server, Wifi, Activity, Bell, AlertOctagon, GitBranch, Flame, Gauge } from "lucide-react";
+import {
+  Server,
+  Wifi,
+  Activity,
+  Bell,
+  AlertOctagon,
+  GitBranch,
+  Flame,
+  Gauge,
+  ClipboardList,
+} from "lucide-react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -19,6 +29,7 @@ import { MitreBadges } from "@/components/common/MitreBadges";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/context/AuthContext";
 
 export const Route = createFileRoute("/_app/dashboard")({
   component: DashboardPage,
@@ -47,6 +58,8 @@ function useDash<T>(key: string, path: string) {
 }
 
 function DashboardPage() {
+  const { user } = useAuth();
+  const canViewAudit = user?.role === "ORG_ADMIN" || user?.role === "SUPER_ADMIN";
   const summary = useDash<Summary>("summary", "/api/dashboard/summary");
   const posture = useDash<Posture>("posture", "/api/dashboard/security-posture");
   const alerts = useDash<unknown>("alerts", "/api/dashboard/recent-alerts");
@@ -55,6 +68,11 @@ function DashboardPage() {
   const mitre = useDash<unknown>("mitre", "/api/dashboard/mitre-summary");
   const trends = useDash<unknown>("trends", "/api/dashboard/severity-trends");
   const agents = useDash<unknown>("agentHealth", "/api/dashboard/agent-health");
+  const audit = useQuery<unknown>({
+    queryKey: ["dash", "audit"],
+    queryFn: () => api.get("/api/audit?limit=5"),
+    enabled: canViewAudit,
+  });
 
   const s = summary.data ?? {};
   const p = posture.data ?? {};
@@ -316,6 +334,26 @@ function DashboardPage() {
           kind="chain"
         />
       </div>
+
+      {canViewAudit && (
+        <Card className="border-border/60 bg-card/60">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <ClipboardList className="h-4 w-4" />
+              Recent Audit Activity
+            </CardTitle>
+            <Link to="/audit" className="text-xs text-primary hover:underline">
+              View all
+            </Link>
+          </CardHeader>
+          <CardContent className="px-0">
+            <RecentAuditActivity
+              loading={audit.isLoading}
+              rows={toArray<Record<string, unknown>>(audit.data)}
+            />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
@@ -327,6 +365,37 @@ function mapPostureSeverity(label?: string) {
   if (v.includes("fair") || v.includes("med")) return "medium";
   if (v.includes("good")) return "low";
   return "info";
+}
+
+function RecentAuditActivity({
+  loading,
+  rows,
+}: {
+  loading: boolean;
+  rows: Record<string, unknown>[];
+}) {
+  if (loading) return <LoadingState label="Loading audit activity" />;
+  if (rows.length === 0) {
+    return (
+      <div className="px-4 pb-4">
+        <EmptyState title="No audit activity" />
+      </div>
+    );
+  }
+  return (
+    <ul className="divide-y divide-border/60">
+      {rows.slice(0, 5).map((row, index) => (
+        <li key={String(row.id ?? index)} className="grid gap-1 px-4 py-2.5 text-sm md:grid-cols-4">
+          <p className="font-mono text-xs text-foreground">{String(row.action ?? "—")}</p>
+          <p className="text-muted-foreground">{String(row.actor_email ?? "System")}</p>
+          <p className="text-muted-foreground">{String(row.resource_type ?? "—")}</p>
+          <p className="text-right text-xs text-muted-foreground">
+            {fmtRelative(row.created_at as string | undefined)}
+          </p>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function normalizeTrend(

@@ -4,6 +4,7 @@ from app.api.routes.agents import router as agents_router
 from app.api.routes.alerts import router as alerts_router
 from app.api.routes.attack_chains import incident_router as incident_attack_chain_router
 from app.api.routes.attack_chains import router as attack_chains_router
+from app.api.routes.audit_logs import router as audit_logs_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.detections import router as detections_router
@@ -22,6 +23,7 @@ def build_api_router() -> APIRouter:
     router.include_router(attack_chains_router)
     router.include_router(incident_attack_chain_router)
     router.include_router(dashboard_router)
+    router.include_router(audit_logs_router)
     return router
 
 

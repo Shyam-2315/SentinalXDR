@@ -11,12 +11,14 @@ from app.models.user import User
 from app.repositories.agents import AgentRepository
 from app.repositories.alerts import AlertRepository
 from app.repositories.attack_chains import AttackChainRepository
+from app.repositories.audit_logs import AuditLogRepository
 from app.repositories.dashboard import DashboardRepository
 from app.repositories.detections import DetectionResultRepository, DetectionRuleRepository
 from app.repositories.events import EventRepository
 from app.repositories.incidents import IncidentRepository
 from app.repositories.organizations import OrganizationRepository
 from app.repositories.users import UserRepository
+from app.services.audit_service import AuditService
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -59,6 +61,18 @@ def get_attack_chain_repository() -> AttackChainRepository:
 
 def get_dashboard_repository() -> DashboardRepository:
     return DashboardRepository(get_database())
+
+
+def get_audit_repository() -> AuditLogRepository:
+    return AuditLogRepository(get_database())
+
+
+def get_audit_service() -> AuditService:
+    try:
+        repository = get_audit_repository()
+    except RuntimeError:
+        repository = None
+    return AuditService(repository)
 
 
 async def get_current_user(

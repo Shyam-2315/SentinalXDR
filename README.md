@@ -117,6 +117,23 @@ make demo-smoke
 
 Log in to the frontend with the credentials printed by `demo_seed.py`.
 
+## Production Stack
+
+Phase 13 adds a production Docker stack:
+
+```bash
+cp .env.production.example .env.production
+docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
+```
+
+The production stack exposes nginx on `NGINX_HTTP_PORT` and keeps backend, MongoDB, Redis, and the frontend static container on the Docker network. See `docs/PRODUCTION_DEPLOYMENT.md`.
+
+## Audit Logs
+
+Phase 14 adds an audit/compliance layer for user and system actions. The backend records login, logout, token refresh, agent lifecycle, detection rule changes, alert status updates, incident updates, and attack chain status updates.
+
+Audit logs are available at `/api/audit` for `ORG_ADMIN` and `SUPER_ADMIN` users and in the frontend at `/audit`. Sensitive metadata fields such as passwords, tokens, API keys, JWTs, refresh tokens, and agent keys are redacted. See `docs/SECURITY_HARDENING.md`.
+
 ## Notes
 
 - Demo data is tagged with `sentinelxdr-demo`.

@@ -1,8 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
-from app.api.dependencies import get_incident_repository, get_user_repository, require_roles
+from app.api.dependencies import (
+    get_audit_service,
+    get_incident_repository,
+    get_user_repository,
+    require_roles,
+)
 from app.models.auth import Role
 from app.models.event import EventSeverity
 from app.models.incident import Incident, IncidentStatus
@@ -16,6 +21,7 @@ from app.schemas.incidents import (
     IncidentStatusUpdate,
     IncidentSummaryUpdate,
 )
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -92,8 +98,10 @@ async def get_incident(
 async def update_incident_status(
     incident_id: str,
     payload: IncidentStatusUpdate,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*UPDATE_ROLES))],
     incidents: Annotated[IncidentRepository, Depends(get_incident_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> IncidentRead:
     incident = await incidents.find_by_id_for_organization(
         incident_id=incident_id,
@@ -115,6 +123,19 @@ async def update_incident_status(
     )
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+    await audit.log(
+        action="incident.status_update",
+        resource_type="incident",
+        resource_id=updated.id,
+        description="Incident status updated",
+        request=request,
+        current_user=current_user,
+        metadata={
+            "previous_status": incident.status.value,
+            "status": updated.status.value,
+            "title": updated.title,
+        },
+    )
     return to_incident_read(updated)
 
 
@@ -122,9 +143,11 @@ async def update_incident_status(
 async def assign_incident(
     incident_id: str,
     payload: IncidentAssignUpdate,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*UPDATE_ROLES))],
     incidents: Annotated[IncidentRepository, Depends(get_incident_repository)],
     users: Annotated[UserRepository, Depends(get_user_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> IncidentRead:
     incident = await incidents.find_by_id_for_organization(
         incident_id=incident_id,
@@ -145,6 +168,19 @@ async def assign_incident(
     )
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+    await audit.log(
+        action="incident.assign",
+        resource_type="incident",
+        resource_id=updated.id,
+        description="Incident assignment updated",
+        request=request,
+        current_user=current_user,
+        metadata={
+            "previous_assigned_to_user_id": incident.assigned_to_user_id,
+            "assigned_to_user_id": updated.assigned_to_user_id,
+            "title": updated.title,
+        },
+    )
     return to_incident_read(updated)
 
 
@@ -152,8 +188,10 @@ async def assign_incident(
 async def update_incident_summary(
     incident_id: str,
     payload: IncidentSummaryUpdate,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*UPDATE_ROLES))],
     incidents: Annotated[IncidentRepository, Depends(get_incident_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> IncidentRead:
     incident = await incidents.update_summary(
         incident_id=incident_id,
@@ -162,6 +200,15 @@ async def update_incident_summary(
     )
     if incident is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+    await audit.log(
+        action="incident.summary_update",
+        resource_type="incident",
+        resource_id=incident.id,
+        description="Incident summary updated",
+        request=request,
+        current_user=current_user,
+        metadata={"title": incident.title, "summary_present": bool(incident.summary)},
+    )
     return to_incident_read(incident)
 
 

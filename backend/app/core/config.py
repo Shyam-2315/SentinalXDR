@@ -1,8 +1,10 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_JWT_SECRET_KEY = "change-me-in-production-minimum-32-chars"
 
 
 class Settings(BaseSettings):
@@ -16,6 +18,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     environment: Literal["local", "test", "staging", "production"] = "local"
     debug: bool = False
+    expose_api_docs: bool = Field(default=True, alias="EXPOSE_API_DOCS")
 
     api_v1_prefix: str = "/api/v1"
 
@@ -30,7 +33,7 @@ class Settings(BaseSettings):
     )
 
     jwt_secret_key: str = Field(
-        default="change-me-in-production-minimum-32-chars",
+        default=DEFAULT_JWT_SECRET_KEY,
         alias="JWT_SECRET_KEY",
     )
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
@@ -61,6 +64,23 @@ class Settings(BaseSettings):
             for origin in self.cors_allowed_origins.split(",")
             if origin.strip()
         ]
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        if self.environment != "production":
+            return self
+
+        errors: list[str] = []
+        if self.debug:
+            errors.append("DEBUG=true is not allowed when ENVIRONMENT=production")
+        if self.jwt_secret_key == DEFAULT_JWT_SECRET_KEY:
+            errors.append("JWT_SECRET_KEY must be changed when ENVIRONMENT=production")
+        if "*" in self.cors_origins:
+            errors.append("Wildcard CORS origins are not allowed when ENVIRONMENT=production")
+
+        if errors:
+            raise ValueError("; ".join(errors))
+        return self
 
 
 @lru_cache

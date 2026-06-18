@@ -1,13 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
-from app.api.dependencies import get_alert_repository, require_roles
+from app.api.dependencies import get_alert_repository, get_audit_service, require_roles
 from app.models.alert import Alert
 from app.models.auth import Role
 from app.models.user import User
 from app.repositories.alerts import AlertRepository
 from app.schemas.alerts import AlertListResponse, AlertRead, AlertStatusUpdate
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -58,8 +59,10 @@ async def get_alert(
 async def update_alert_status(
     alert_id: str,
     payload: AlertStatusUpdate,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*UPDATE_ROLES))],
     alerts: Annotated[AlertRepository, Depends(get_alert_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> AlertRead:
     alert = await alerts.update_status(
         alert_id=alert_id,
@@ -68,4 +71,13 @@ async def update_alert_status(
     )
     if alert is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    await audit.log(
+        action="alert.status_update",
+        resource_type="alert",
+        resource_id=alert.id,
+        description="Alert status updated",
+        request=request,
+        current_user=current_user,
+        metadata={"status": alert.status.value, "title": alert.title},
+    )
     return to_alert_read(alert)

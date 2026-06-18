@@ -57,6 +57,7 @@ def test_api_routes_are_mounted_at_legacy_and_versioned_prefixes(client: TestCli
         "/incidents",
         "/attack-chains",
         "/dashboard/summary",
+        "/audit",
     ]
     for prefix in ("/api", "/api/v1"):
         for suffix in expected_suffixes:

@@ -20,6 +20,7 @@ import { Route as AppEventsRouteImport } from './routes/_app.events'
 import { Route as AppDetectionsRouteImport } from './routes/_app.detections'
 import { Route as AppDetectionResultsRouteImport } from './routes/_app.detection-results'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppAuditRouteImport } from './routes/_app.audit'
 import { Route as AppAttackChainsRouteImport } from './routes/_app.attack-chains'
 import { Route as AppAlertsRouteImport } from './routes/_app.alerts'
 import { Route as AppAgentsRouteImport } from './routes/_app.agents'
@@ -82,6 +83,11 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const AppAuditRoute = AppAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppAttackChainsRoute = AppAttackChainsRouteImport.update({
   id: '/attack-chains',
   path: '/attack-chains',
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/agents': typeof AppAgentsRoute
   '/alerts': typeof AppAlertsRoute
   '/attack-chains': typeof AppAttackChainsRouteWithChildren
+  '/audit': typeof AppAuditRoute
   '/dashboard': typeof AppDashboardRoute
   '/detection-results': typeof AppDetectionResultsRoute
   '/detections': typeof AppDetectionsRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/agents': typeof AppAgentsRoute
   '/alerts': typeof AppAlertsRoute
+  '/audit': typeof AppAuditRoute
   '/dashboard': typeof AppDashboardRoute
   '/detection-results': typeof AppDetectionResultsRoute
   '/detections': typeof AppDetectionsRoute
@@ -163,6 +171,7 @@ export interface FileRoutesById {
   '/_app/agents': typeof AppAgentsRoute
   '/_app/alerts': typeof AppAlertsRoute
   '/_app/attack-chains': typeof AppAttackChainsRouteWithChildren
+  '/_app/audit': typeof AppAuditRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/detection-results': typeof AppDetectionResultsRoute
   '/_app/detections': typeof AppDetectionsRoute
@@ -184,6 +193,7 @@ export interface FileRouteTypes {
     | '/agents'
     | '/alerts'
     | '/attack-chains'
+    | '/audit'
     | '/dashboard'
     | '/detection-results'
     | '/detections'
@@ -202,6 +212,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/agents'
     | '/alerts'
+    | '/audit'
     | '/dashboard'
     | '/detection-results'
     | '/detections'
@@ -221,6 +232,7 @@ export interface FileRouteTypes {
     | '/_app/agents'
     | '/_app/alerts'
     | '/_app/attack-chains'
+    | '/_app/audit'
     | '/_app/dashboard'
     | '/_app/detection-results'
     | '/_app/detections'
@@ -320,6 +332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/audit': {
+      id: '/_app/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AppAuditRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/attack-chains': {
       id: '/_app/attack-chains'
       path: '/attack-chains'
@@ -404,6 +423,7 @@ interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
   AppAlertsRoute: typeof AppAlertsRoute
   AppAttackChainsRoute: typeof AppAttackChainsRouteWithChildren
+  AppAuditRoute: typeof AppAuditRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppDetectionResultsRoute: typeof AppDetectionResultsRoute
   AppDetectionsRoute: typeof AppDetectionsRoute
@@ -417,6 +437,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
   AppAlertsRoute: AppAlertsRoute,
   AppAttackChainsRoute: AppAttackChainsRouteWithChildren,
+  AppAuditRoute: AppAuditRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppDetectionResultsRoute: AppDetectionResultsRoute,
   AppDetectionsRoute: AppDetectionsRoute,

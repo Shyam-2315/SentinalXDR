@@ -1,8 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.api.dependencies import (
+    get_audit_service,
     get_detection_result_repository,
     get_detection_rule_repository,
     require_roles,
@@ -19,6 +20,7 @@ from app.schemas.detections import (
     DetectionRuleRead,
     DetectionRuleUpdate,
 )
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/detections", tags=["detections"])
 
@@ -62,10 +64,21 @@ async def get_rule(
 @router.post("/rules", response_model=DetectionRuleRead, status_code=status.HTTP_201_CREATED)
 async def create_rule(
     payload: DetectionRuleCreate,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*CREATE_ROLES))],
     rules: Annotated[DetectionRuleRepository, Depends(get_detection_rule_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> DetectionRuleRead:
     rule = await rules.create(organization_id=current_user.organization_id, rule=payload)
+    await audit.log(
+        action="detection_rule.create",
+        resource_type="detection_rule",
+        resource_id=rule.id,
+        description="Detection rule created",
+        request=request,
+        current_user=current_user,
+        metadata={"name": rule.name, "enabled": rule.enabled, "severity": rule.severity.value},
+    )
     return to_rule_read(rule)
 
 
@@ -73,8 +86,10 @@ async def create_rule(
 async def update_rule(
     rule_id: str,
     payload: DetectionRuleUpdate,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*ADMIN_ROLES))],
     rules: Annotated[DetectionRuleRepository, Depends(get_detection_rule_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> DetectionRuleRead:
     existing = await rules.find_by_id_for_organization(
         rule_id=rule_id,
@@ -94,31 +109,49 @@ async def update_rule(
     )
     if rule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+    await audit.log(
+        action="detection_rule.update",
+        resource_type="detection_rule",
+        resource_id=rule.id,
+        description="Detection rule updated",
+        request=request,
+        current_user=current_user,
+        metadata={
+            "name": rule.name,
+            "updated_fields": list(payload.model_dump(exclude_unset=True).keys()),
+        },
+    )
     return to_rule_read(rule)
 
 
 @router.post("/rules/{rule_id}/disable", response_model=DetectionRuleRead)
 async def disable_rule(
     rule_id: str,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*ADMIN_ROLES))],
     rules: Annotated[DetectionRuleRepository, Depends(get_detection_rule_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> DetectionRuleRead:
-    return await set_rule_enabled(rule_id, current_user, rules, enabled=False)
+    return await set_rule_enabled(rule_id, request, current_user, rules, audit, enabled=False)
 
 
 @router.post("/rules/{rule_id}/enable", response_model=DetectionRuleRead)
 async def enable_rule(
     rule_id: str,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*ADMIN_ROLES))],
     rules: Annotated[DetectionRuleRepository, Depends(get_detection_rule_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> DetectionRuleRead:
-    return await set_rule_enabled(rule_id, current_user, rules, enabled=True)
+    return await set_rule_enabled(rule_id, request, current_user, rules, audit, enabled=True)
 
 
 async def set_rule_enabled(
     rule_id: str,
+    request: Request,
     current_user: User,
     rules: DetectionRuleRepository,
+    audit: AuditService,
     *,
     enabled: bool,
 ) -> DetectionRuleRead:
@@ -140,6 +173,15 @@ async def set_rule_enabled(
     )
     if rule is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+    await audit.log(
+        action="detection_rule.enable" if enabled else "detection_rule.disable",
+        resource_type="detection_rule",
+        resource_id=rule.id,
+        description="Detection rule enabled" if enabled else "Detection rule disabled",
+        request=request,
+        current_user=current_user,
+        metadata={"name": rule.name, "enabled": rule.enabled},
+    )
     return to_rule_read(rule)
 
 

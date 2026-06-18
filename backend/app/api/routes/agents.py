@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 
-from app.api.dependencies import get_agent_repository, require_roles
+from app.api.dependencies import get_agent_repository, get_audit_service, require_roles
 from app.core.security import generate_agent_api_key, hash_agent_api_key
 from app.models.agent import Agent, AgentStatus
 from app.models.auth import Role
@@ -17,6 +17,7 @@ from app.schemas.agents import (
     AgentRegisterRequest,
     AgentRegisterResponse,
 )
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -49,8 +50,10 @@ def to_agent_read(agent: Agent) -> AgentRead:
 )
 async def register_agent(
     payload: AgentRegisterRequest,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*WRITE_ROLES))],
     agents: Annotated[AgentRepository, Depends(get_agent_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> AgentRegisterResponse:
     api_key = generate_agent_api_key()
     agent = await agents.create(
@@ -62,6 +65,21 @@ async def register_agent(
         ip_address=payload.ip_address,
         tags=payload.tags,
         api_key_hash=hash_agent_api_key(api_key),
+    )
+    await audit.log(
+        action="agent.register",
+        resource_type="agent",
+        resource_id=agent.id,
+        description="Agent registered",
+        request=request,
+        current_user=current_user,
+        metadata={
+            "name": agent.name,
+            "hostname": agent.hostname,
+            "os_type": agent.os_type.value,
+            "agent_version": agent.agent_version,
+            "tags": agent.tags,
+        },
     )
     return AgentRegisterResponse(agent=to_agent_read(agent), api_key=api_key)
 
@@ -130,8 +148,10 @@ async def get_agent(
 @router.post("/{agent_id}/disable", response_model=AgentDisableResponse)
 async def disable_agent(
     agent_id: str,
+    request: Request,
     current_user: Annotated[User, Depends(require_roles(*ADMIN_ROLES))],
     agents: Annotated[AgentRepository, Depends(get_agent_repository)],
+    audit: Annotated[AuditService, Depends(get_audit_service)],
 ) -> AgentDisableResponse:
     agent = await agents.disable(
         agent_id=agent_id,
@@ -142,4 +162,13 @@ async def disable_agent(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Agent not found",
         )
+    await audit.log(
+        action="agent.disable",
+        resource_type="agent",
+        resource_id=agent.id,
+        description="Agent disabled",
+        request=request,
+        current_user=current_user,
+        metadata={"hostname": agent.hostname, "name": agent.name},
+    )
     return AgentDisableResponse(agent=to_agent_read(agent))

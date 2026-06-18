@@ -10,8 +10,10 @@ import {
   Crosshair,
   Settings,
   Shield,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
 
 const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -23,11 +25,14 @@ const nav = [
   { to: "/incidents", label: "Incidents", icon: AlertOctagon },
   { to: "/attack-chains", label: "Attack Chains", icon: GitBranch },
   { to: "/mitre", label: "MITRE Summary", icon: Crosshair },
+  { to: "/audit", label: "Audit Logs", icon: ClipboardList, adminOnly: true },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
 export function Sidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { user } = useAuth();
+  const canViewAudit = user?.role === "ORG_ADMIN" || user?.role === "SUPER_ADMIN";
   return (
     <aside className="hidden h-screen w-60 shrink-0 flex-col border-r border-border/60 bg-sidebar md:flex">
       <div className="flex h-14 items-center gap-2 border-b border-border/60 px-4">
@@ -41,6 +46,7 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
         {nav.map((item) => {
+          if ("adminOnly" in item && item.adminOnly && !canViewAudit) return null;
           const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
           const Icon = item.icon;
           return (

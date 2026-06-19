@@ -55,13 +55,20 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_API_BASE_URL: ${FRONTEND_PUBLIC_URL:-http://localhost}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost}
     container_name: sentinelxdr-prod-frontend
+    command: ["nginx", "-g", "daemon off;"]
     expose:
       - "80"
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
   mongo:

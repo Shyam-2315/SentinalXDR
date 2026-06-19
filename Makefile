@@ -60,4 +60,4 @@ prod-reset:
 	$(PROD_COMPOSE) down -v
 
 prod-smoke:
-	python3 scripts/prod_smoke_check.py --base-url $${FRONTEND_PUBLIC_URL:-http://localhost}
+	python3 scripts/prod_smoke_check.py --base-url $${VITE_API_BASE_URL:-http://localhost}

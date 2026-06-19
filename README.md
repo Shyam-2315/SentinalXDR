@@ -10,6 +10,8 @@ Start the full local stack:
 docker compose up --build
 ```
 
+The development stack builds `frontend/Dockerfile`, runs a Node 22 container, and serves the frontend with the Vite npm dev server on port `8080`.
+
 Then open:
 
 - Frontend: `http://localhost:8080`
@@ -123,10 +125,16 @@ Phase 13 adds a production Docker stack:
 
 ```bash
 cp .env.production.example .env.production
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+With an explicit production env file:
+
+```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
 ```
 
-The production stack exposes nginx on `NGINX_HTTP_PORT` and keeps backend, MongoDB, Redis, and the frontend static container on the Docker network. See `docs/PRODUCTION_DEPLOYMENT.md`.
+The production stack builds `frontend/Dockerfile.prod` with npm only in the Node builder stage, then runs the frontend in an nginx runtime container that serves static files on internal port `80`. It exposes the public nginx reverse proxy on `NGINX_HTTP_PORT` and keeps backend, MongoDB, Redis, and the frontend static container on the Docker network. See `docs/PRODUCTION_DEPLOYMENT.md`.
 
 ## Audit Logs
 

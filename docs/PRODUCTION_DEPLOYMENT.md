@@ -27,7 +27,7 @@ JWT_SECRET_KEY=<generate-a-long-random-secret>
 MONGODB_URI=mongodb://mongo:27017/sentinelxdr
 REDIS_URL=redis://redis:6379/0
 BACKEND_CORS_ORIGINS=https://your-xdr-domain.example
-FRONTEND_PUBLIC_URL=https://your-xdr-domain.example
+VITE_API_BASE_URL=https://your-xdr-domain.example
 EXPOSE_API_DOCS=false
 NGINX_HTTP_PORT=80
 ```
@@ -41,6 +41,12 @@ openssl rand -hex 32
 ## Startup
 
 Exact production startup command:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+With an explicit production env file:
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
@@ -82,6 +88,12 @@ The public nginx container exposes one HTTP port and proxies internally:
 
 Production defaults set `EXPOSE_API_DOCS=false`, so documentation routes return `404`. For local or staging production-stack testing, set `EXPOSE_API_DOCS=true`.
 
+## Frontend Runtime
+
+The development stack uses `frontend/Dockerfile` and runs `npm run dev -- --host 0.0.0.0 --port 8080` in a Node container. The production stack uses `frontend/Dockerfile.prod`: npm runs only in the Node builder stage, and the final runtime image is nginx serving the static frontend on internal port `80`.
+
+Set `VITE_API_BASE_URL` at build time to the public origin handled by the root nginx reverse proxy, for example `http://localhost` locally or `https://your-xdr-domain.example` in production. The frontend app calls `/api/...` paths against that origin.
+
 ## Audit and Compliance
 
 The production backend stores audit logs in MongoDB in the `audit_logs` collection. Audit logs capture actor, organization, action, resource, status, IP address, user agent, timestamp, description, and redacted metadata.
@@ -106,7 +118,7 @@ curl -i http://localhost/health/ready
 python3 scripts/prod_smoke_check.py --base-url http://localhost --openapi disabled
 ```
 
-For a non-local domain, replace `http://localhost` with `FRONTEND_PUBLIC_URL`.
+For a non-local domain, replace `http://localhost` with `VITE_API_BASE_URL`.
 
 ## Notes
 

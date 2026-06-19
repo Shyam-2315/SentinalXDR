@@ -41,6 +41,8 @@ services:
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-http://localhost}
       EVENT_INGEST_BATCH_SIZE_LIMIT: ${EVENT_INGEST_BATCH_SIZE_LIMIT:-100}
       INCIDENT_CORRELATION_WINDOW_MINUTES: ${INCIDENT_CORRELATION_WINDOW_MINUTES:-30}
+      EVIDENCE_STORAGE_ROOT: ${EVIDENCE_STORAGE_ROOT:-/app/storage/evidence}
+      EVIDENCE_MAX_UPLOAD_MB: ${EVIDENCE_MAX_UPLOAD_MB:-25}
     depends_on:
       mongo:
         condition: service_healthy
@@ -48,6 +50,8 @@ services:
         condition: service_healthy
     expose:
       - "8010"
+    volumes:
+      - sentinelxdr_prod_evidence_data:/app/storage/evidence
     restart: unless-stopped
 
   frontend:
@@ -101,3 +105,4 @@ services:
 volumes:
   sentinelxdr_prod_mongo_data:
   sentinelxdr_prod_redis_data:
+  sentinelxdr_prod_evidence_data:

@@ -28,6 +28,8 @@ MONGODB_URI=mongodb://mongo:27017/sentinelxdr
 REDIS_URL=redis://redis:6379/0
 BACKEND_CORS_ORIGINS=https://your-xdr-domain.example
 VITE_API_BASE_URL=https://your-xdr-domain.example
+EVIDENCE_STORAGE_ROOT=/app/storage/evidence
+EVIDENCE_MAX_UPLOAD_MB=25
 EXPOSE_API_DOCS=false
 NGINX_HTTP_PORT=80
 ```
@@ -104,6 +106,19 @@ Audit APIs:
 - `GET /api/audit/{audit_id}`
 
 Only `ORG_ADMIN` and `SUPER_ADMIN` can read audit logs. Audit logs are organization-scoped and immutable through the API.
+
+## Evidence Storage
+
+The production backend stores evidence files in `/app/storage/evidence` by default and mounts that path to the named Docker volume `sentinelxdr_prod_evidence_data`. Keep this volume with MongoDB backups because MongoDB stores evidence metadata and SHA-256 hashes while the volume stores the file bytes.
+
+Configure:
+
+```env
+EVIDENCE_STORAGE_ROOT=/app/storage/evidence
+EVIDENCE_MAX_UPLOAD_MB=25
+```
+
+Do not point `EVIDENCE_STORAGE_ROOT` at a temporary container path in production.
 
 ## Verification
 

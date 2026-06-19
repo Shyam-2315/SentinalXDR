@@ -15,6 +15,7 @@ from app.repositories.audit_logs import AuditLogRepository
 from app.repositories.dashboard import DashboardRepository
 from app.repositories.detections import DetectionResultRepository, DetectionRuleRepository
 from app.repositories.events import EventRepository
+from app.repositories.evidence import EvidenceCustodyRepository, EvidenceRepository
 from app.repositories.incidents import IncidentRepository
 from app.repositories.organizations import OrganizationRepository
 from app.repositories.users import UserRepository
@@ -57,6 +58,14 @@ def get_incident_repository() -> IncidentRepository:
 
 def get_attack_chain_repository() -> AttackChainRepository:
     return AttackChainRepository(get_database())
+
+
+def get_evidence_repository() -> EvidenceRepository:
+    return EvidenceRepository(get_database())
+
+
+def get_evidence_custody_repository() -> EvidenceCustodyRepository:
+    return EvidenceCustodyRepository(get_database())
 
 
 def get_dashboard_repository() -> DashboardRepository:

@@ -20,12 +20,16 @@ services:
       AGENT_API_KEY_BYTES: ${AGENT_API_KEY_BYTES:-32}
       EVENT_INGEST_BATCH_SIZE_LIMIT: ${EVENT_INGEST_BATCH_SIZE_LIMIT:-100}
       INCIDENT_CORRELATION_WINDOW_MINUTES: ${INCIDENT_CORRELATION_WINDOW_MINUTES:-30}
+      EVIDENCE_STORAGE_ROOT: ${EVIDENCE_STORAGE_ROOT:-/app/storage/evidence}
+      EVIDENCE_MAX_UPLOAD_MB: ${EVIDENCE_MAX_UPLOAD_MB:-25}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       - mongo
       - redis
+    volumes:
+      - ./storage/evidence:/app/storage/evidence
 
   mongo:
     image: mongo:7

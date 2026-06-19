@@ -49,6 +49,8 @@ class Settings(BaseSettings):
         default=30,
         alias="INCIDENT_CORRELATION_WINDOW_MINUTES",
     )
+    evidence_storage_root: str = Field(default="storage/evidence", alias="EVIDENCE_STORAGE_ROOT")
+    evidence_max_upload_mb: int = Field(default=25, alias="EVIDENCE_MAX_UPLOAD_MB")
     cors_allowed_origins: str = Field(
         default=(
             "http://localhost:5173,http://127.0.0.1:5173,"

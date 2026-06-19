@@ -142,6 +142,12 @@ Phase 14 adds an audit/compliance layer for user and system actions. The backend
 
 Audit logs are available at `/api/audit` for `ORG_ADMIN` and `SUPER_ADMIN` users and in the frontend at `/audit`. Sensitive metadata fields such as passwords, tokens, API keys, JWTs, refresh tokens, and agent keys are redacted. See `docs/SECURITY_HARDENING.md`.
 
+## Evidence Vault
+
+Phase 15 adds digital evidence management for SOC and law-enforcement workflows. Analysts and admins can upload evidence files, link them to incidents, verify SHA-256 integrity, download originals, archive or restore records, and review chain-of-custody events.
+
+Evidence APIs are available under `/api/evidence`; the frontend page is `/evidence`. Local storage defaults to `storage/evidence`, can be changed with `EVIDENCE_STORAGE_ROOT`, and is capped by `EVIDENCE_MAX_UPLOAD_MB` which defaults to `25`. See `docs/EVIDENCE_VAULT.md`.
+
 ## Notes
 
 - Demo data is tagged with `sentinelxdr-demo`.

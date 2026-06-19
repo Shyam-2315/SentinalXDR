@@ -1,4 +1,35 @@
-import { api } from "./api";
+import { ApiError, BASE_URL, api } from "./api";
+import { authStore } from "./auth";
+
+export type EvidenceQuery = {
+  incident_id?: string;
+  status?: string;
+  verification_status?: string;
+  tag?: string;
+  limit?: number;
+  skip?: number;
+};
+
+export type EvidenceUploadInput = {
+  file: File;
+  incident_id?: string;
+  description?: string;
+  tags?: string;
+};
+
+async function downloadFile(path: string) {
+  const token = authStore.getAccess();
+  const response = await fetch(`${BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, `Download failed (${response.status})`);
+  }
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") ?? "";
+  const match = disposition.match(/filename="?([^";]+)"?/i);
+  return { blob, filename: match?.[1] ?? "evidence-download" };
+}
 
 export const sentinelApi = {
   me: () => api.get("/api/auth/me"),
@@ -56,4 +87,23 @@ export const sentinelApi = {
 
   auditLogs: (query = "") => api.get(`/api/audit${query}`),
   auditLog: (auditId: string) => api.get(`/api/audit/${auditId}`),
+
+  listEvidence: (query: EvidenceQuery = {}) => api.get("/api/evidence", { query }),
+  getEvidence: (evidenceId: string) => api.get(`/api/evidence/${evidenceId}`),
+  uploadEvidence: (payload: EvidenceUploadInput) => {
+    const form = new FormData();
+    form.set("file", payload.file);
+    if (payload.incident_id) form.set("incident_id", payload.incident_id);
+    if (payload.description) form.set("description", payload.description);
+    if (payload.tags) form.set("tags", payload.tags);
+    return api.post("/api/evidence", form);
+  },
+  downloadEvidence: (evidenceId: string) => downloadFile(`/api/evidence/${evidenceId}/download`),
+  verifyEvidence: (evidenceId: string) => api.post(`/api/evidence/${evidenceId}/verify`),
+  linkEvidence: (evidenceId: string, incidentId: string) =>
+    api.patch(`/api/evidence/${evidenceId}/link`, { incident_id: incidentId }),
+  unlinkEvidence: (evidenceId: string) => api.patch(`/api/evidence/${evidenceId}/unlink`),
+  archiveEvidence: (evidenceId: string) => api.post(`/api/evidence/${evidenceId}/archive`),
+  restoreEvidence: (evidenceId: string) => api.post(`/api/evidence/${evidenceId}/restore`),
+  getEvidenceCustody: (evidenceId: string) => api.get(`/api/evidence/${evidenceId}/custody`),
 };

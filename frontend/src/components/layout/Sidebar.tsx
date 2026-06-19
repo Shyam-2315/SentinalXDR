@@ -11,6 +11,7 @@ import {
   Settings,
   Shield,
   ClipboardList,
+  FolderLock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -23,6 +24,7 @@ const nav = [
   { to: "/detection-results", label: "Detection Results", icon: ShieldAlert },
   { to: "/alerts", label: "Alerts", icon: Bell },
   { to: "/incidents", label: "Incidents", icon: AlertOctagon },
+  { to: "/evidence", label: "Evidence Vault", icon: FolderLock },
   { to: "/attack-chains", label: "Attack Chains", icon: GitBranch },
   { to: "/mitre", label: "MITRE Summary", icon: Crosshair },
   { to: "/audit", label: "Audit Logs", icon: ClipboardList, adminOnly: true },

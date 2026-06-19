@@ -10,6 +10,7 @@ import {
   Flame,
   Gauge,
   ClipboardList,
+  FolderLock,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -68,6 +69,7 @@ function DashboardPage() {
   const mitre = useDash<unknown>("mitre", "/api/dashboard/mitre-summary");
   const trends = useDash<unknown>("trends", "/api/dashboard/severity-trends");
   const agents = useDash<unknown>("agentHealth", "/api/dashboard/agent-health");
+  const evidence = useDash<unknown>("evidence", "/api/evidence?limit=1");
   const audit = useQuery<unknown>({
     queryKey: ["dash", "audit"],
     queryFn: () => api.get("/api/audit?limit=5"),
@@ -97,6 +99,7 @@ function DashboardPage() {
     void mitre.refetch();
     void trends.refetch();
     void agents.refetch();
+    void evidence.refetch();
   }
 
   return (
@@ -108,7 +111,7 @@ function DashboardPage() {
 
       {dashboardError ? <ErrorState error={dashboardError} onRetry={retryAll} /> : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-9">
         <MetricCard
           label="Total Agents"
           value={s.total_agents ?? 0}
@@ -155,6 +158,13 @@ function DashboardPage() {
           tone="critical"
           icon={GitBranch}
           loading={summary.isLoading}
+        />
+        <MetricCard
+          label="Evidence"
+          value={Number((evidence.data as Record<string, unknown> | undefined)?.count ?? 0)}
+          tone="info"
+          icon={FolderLock}
+          loading={evidence.isLoading}
         />
         <MetricCard
           label="Avg Risk Score"

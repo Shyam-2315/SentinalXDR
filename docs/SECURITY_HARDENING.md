@@ -53,12 +53,21 @@ SentinelAI XDR writes immutable audit records for security-significant actions:
 - Alert status updates.
 - Incident status, assignment, and summary updates.
 - Attack chain status updates.
+- Evidence upload, download, verification, link, unlink, archive, and restore.
 
 Audit records are read-only through `GET /api/audit` and `GET /api/audit/{audit_id}`. There are no update or delete audit APIs.
 
 Audit visibility is restricted to `ORG_ADMIN` and `SUPER_ADMIN`. `ANALYST` and `VIEWER` receive `403`, and cross-organization audit access returns `404`.
 
 Metadata is recursively redacted for sensitive keys including passwords, tokens, API keys, JWTs, authorization headers, secrets, refresh tokens, and agent keys. Audit write failures are logged internally and do not break the primary API request flow.
+
+## Evidence Vault Security
+
+Evidence files are stored on the backend filesystem under `EVIDENCE_STORAGE_ROOT`, defaulting to `storage/evidence`. Uploaded files receive generated safe storage names; user-supplied filenames are sanitized and retained only as display/download metadata. API responses do not expose local absolute paths or storage paths.
+
+Upload size is enforced by `EVIDENCE_MAX_UPLOAD_MB`, default `25`. Evidence SHA-256 is calculated at upload and recalculated by `POST /api/evidence/{evidence_id}/verify`. Hash mismatches and missing files update verification status to `failed` without crashing the request.
+
+Evidence records and custody events are organization-scoped. Cross-organization reads and incident links return `404`. `VIEWER` can list, read, download, and verify evidence for now, but cannot upload, link, unlink, archive, or restore.
 
 ## Remaining Production Controls
 

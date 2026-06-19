@@ -31,6 +31,7 @@ export function toArray<T>(v: unknown): T[] {
       "incidents",
       "attack_chains",
       "audit_logs",
+      "evidence",
       "detections",
       "days",
       "tactics",

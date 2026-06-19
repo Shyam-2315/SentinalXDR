@@ -12,7 +12,8 @@ RUN apt-get update \
 COPY pyproject.toml README.md ./
 COPY app ./app
 
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir . \
+    && mkdir -p /app/storage/evidence
 
 EXPOSE 8010
 

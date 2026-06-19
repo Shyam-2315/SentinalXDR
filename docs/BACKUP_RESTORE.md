@@ -4,6 +4,7 @@ The production stack stores MongoDB and Redis data in Docker volumes:
 
 - `sentinelxdr_prod_mongo_data`
 - `sentinelxdr_prod_redis_data`
+- `sentinelxdr_prod_evidence_data`
 
 ## MongoDB Backup
 
@@ -57,6 +58,29 @@ docker run --rm \
   -v sentinelxdr-prod_sentinelxdr_prod_redis_data:/data \
   -v "$PWD/backups:/backup" \
   alpine sh -c 'rm -rf /data/* && tar -xzf /backup/sentinelxdr-redis-YYYYMMDD-HHMMSS.tar.gz -C /data'
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d
+```
+
+## Evidence File Backup
+
+Evidence metadata, custody events, and hashes live in MongoDB. Evidence file bytes live in the evidence storage volume. Back up both at the same time for a consistent restore point.
+
+```bash
+mkdir -p backups
+docker run --rm \
+  -v sentinelxdr-prod_sentinelxdr_prod_evidence_data:/data:ro \
+  -v "$PWD/backups:/backup" \
+  alpine sh -c 'tar -czf /backup/sentinelxdr-evidence-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .'
+```
+
+Restore evidence files after stopping the stack:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml down
+docker run --rm \
+  -v sentinelxdr-prod_sentinelxdr_prod_evidence_data:/data \
+  -v "$PWD/backups:/backup" \
+  alpine sh -c 'rm -rf /data/* && tar -xzf /backup/sentinelxdr-evidence-YYYYMMDD-HHMMSS.tar.gz -C /data'
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d
 ```
 

@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FolderLock } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { fmtRelative, toArray } from "@/lib/format";
@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { sentinelApi } from "@/lib/sentinelxdr-api";
 
 export const Route = createFileRoute("/_app/incidents/$id")({ component: IncidentDetail });
 
@@ -27,6 +28,10 @@ function IncidentDetail() {
     queryKey: ["incident", id, "chain"],
     queryFn: () =>
       api.get<Record<string, unknown>>(`/api/incidents/${id}/attack-chain`).catch(() => null),
+  });
+  const evidence = useQuery({
+    queryKey: ["incident", id, "evidence"],
+    queryFn: () => sentinelApi.listEvidence({ incident_id: id }),
   });
 
   const [summary, setSummary] = useState("");
@@ -76,6 +81,7 @@ function IncidentDetail() {
   const events = toArray<Record<string, unknown>>(d.events);
   const alertIds = toArray<string>(d.alert_ids);
   const eventIds = toArray<string>(d.event_ids);
+  const evidenceRows = toArray<Record<string, unknown>>(evidence.data);
   const techniques = (d.mitre_techniques ?? d.techniques) as string[] | undefined;
 
   return (
@@ -248,6 +254,45 @@ function IncidentDetail() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-border/60 bg-card/60">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <FolderLock className="h-4 w-4" />
+            Evidence ({evidenceRows.length})
+          </CardTitle>
+          <Link to="/evidence" className="text-xs text-primary hover:underline">
+            Open vault
+          </Link>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {evidence.isLoading ? (
+            <LoadingState label="Loading evidence" />
+          ) : evidenceRows.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No evidence linked to this incident.</p>
+          ) : (
+            evidenceRows.slice(0, 8).map((item) => (
+              <div
+                key={String(item.id)}
+                className="grid gap-2 rounded border border-border/60 bg-background/40 p-2 text-sm md:grid-cols-[1fr_auto_auto]"
+              >
+                <div className="min-w-0">
+                  <p className="truncate">
+                    {String(item.original_filename ?? item.filename ?? "—")}
+                  </p>
+                  <p className="font-mono text-[10px] text-muted-foreground">
+                    {String(item.sha256 ?? "").slice(0, 18)}
+                  </p>
+                </div>
+                <StatusBadge status={item.verification_status as string} />
+                <span className="text-xs text-muted-foreground">
+                  {fmtRelative(item.created_at as string)}
+                </span>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

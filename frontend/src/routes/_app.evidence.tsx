@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Archive,
   Download,
+  FileDown,
   FileCheck2,
   FolderLock,
   Link2,
@@ -37,7 +38,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/context/AuthContext";
 import { fmtDate, fmtRelative, toArray } from "@/lib/format";
-import { sentinelApi } from "@/lib/sentinelxdr-api";
+import { saveDownload, sentinelApi } from "@/lib/sentinelxdr-api";
 
 export const Route = createFileRoute("/_app/evidence")({ component: EvidencePage });
 
@@ -149,14 +150,16 @@ function EvidencePage() {
   });
   const downloadMutation = useMutation({
     mutationFn: (id: string) => sentinelApi.downloadEvidence(id),
-    onSuccess: ({ blob, filename }) => {
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      anchor.click();
-      URL.revokeObjectURL(url);
+    onSuccess: (download) => {
+      saveDownload(download);
       invalidateEvidence();
+    },
+  });
+  const exportReportMutation = useMutation({
+    mutationFn: (id: string) => sentinelApi.downloadEvidenceReport(id),
+    onSuccess: (download) => {
+      saveDownload(download);
+      toast.success("Evidence report exported");
     },
   });
 
@@ -304,6 +307,15 @@ function EvidencePage() {
                 >
                   <Download className="h-4 w-4" />
                   Download
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => exportReportMutation.mutate(selected.id)}
+                  disabled={exportReportMutation.isPending}
+                >
+                  <FileDown className="h-4 w-4" />
+                  Export PDF
                 </Button>
                 {canWrite ? (
                   <LinkControls

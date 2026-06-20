@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppReportsRouteImport } from './routes/_app.reports'
 import { Route as AppMitreRouteImport } from './routes/_app.mitre'
 import { Route as AppIncidentsRouteImport } from './routes/_app.incidents'
 import { Route as AppEvidenceRouteImport } from './routes/_app.evidence'
@@ -52,6 +53,11 @@ const IndexRoute = IndexRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AppRoute,
 } as any)
 const AppMitreRoute = AppMitreRouteImport.update({
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/evidence': typeof AppEvidenceRoute
   '/incidents': typeof AppIncidentsRouteWithChildren
   '/mitre': typeof AppMitreRoute
+  '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/attack-chains/$id': typeof AppAttackChainsIdRoute
   '/incidents/$id': typeof AppIncidentsIdRoute
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/events': typeof AppEventsRoute
   '/evidence': typeof AppEvidenceRoute
   '/mitre': typeof AppMitreRoute
+  '/reports': typeof AppReportsRoute
   '/settings': typeof AppSettingsRoute
   '/attack-chains/$id': typeof AppAttackChainsIdRoute
   '/incidents/$id': typeof AppIncidentsIdRoute
@@ -187,6 +195,7 @@ export interface FileRoutesById {
   '/_app/evidence': typeof AppEvidenceRoute
   '/_app/incidents': typeof AppIncidentsRouteWithChildren
   '/_app/mitre': typeof AppMitreRoute
+  '/_app/reports': typeof AppReportsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/attack-chains/$id': typeof AppAttackChainsIdRoute
   '/_app/incidents/$id': typeof AppIncidentsIdRoute
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/evidence'
     | '/incidents'
     | '/mitre'
+    | '/reports'
     | '/settings'
     | '/attack-chains/$id'
     | '/incidents/$id'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/events'
     | '/evidence'
     | '/mitre'
+    | '/reports'
     | '/settings'
     | '/attack-chains/$id'
     | '/incidents/$id'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/_app/evidence'
     | '/_app/incidents'
     | '/_app/mitre'
+    | '/_app/reports'
     | '/_app/settings'
     | '/_app/attack-chains/$id'
     | '/_app/incidents/$id'
@@ -300,6 +312,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports': {
+      id: '/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/mitre': {
@@ -450,6 +469,7 @@ interface AppRouteChildren {
   AppEvidenceRoute: typeof AppEvidenceRoute
   AppIncidentsRoute: typeof AppIncidentsRouteWithChildren
   AppMitreRoute: typeof AppMitreRoute
+  AppReportsRoute: typeof AppReportsRoute
   AppSettingsRoute: typeof AppSettingsRoute
 }
 
@@ -465,6 +485,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppEvidenceRoute: AppEvidenceRoute,
   AppIncidentsRoute: AppIncidentsRouteWithChildren,
   AppMitreRoute: AppMitreRoute,
+  AppReportsRoute: AppReportsRoute,
   AppSettingsRoute: AppSettingsRoute,
 }
 

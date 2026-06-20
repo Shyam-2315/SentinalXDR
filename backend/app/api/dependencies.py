@@ -20,6 +20,7 @@ from app.repositories.incidents import IncidentRepository
 from app.repositories.organizations import OrganizationRepository
 from app.repositories.users import UserRepository
 from app.services.audit_service import AuditService
+from app.services.report_service import ReportService
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -82,6 +83,26 @@ def get_audit_service() -> AuditService:
     except RuntimeError:
         repository = None
     return AuditService(repository)
+
+
+def get_report_service(
+    organizations: Annotated[OrganizationRepository, Depends(get_organization_repository)],
+    incidents: Annotated[IncidentRepository, Depends(get_incident_repository)],
+    attack_chains: Annotated[AttackChainRepository, Depends(get_attack_chain_repository)],
+    evidence: Annotated[EvidenceRepository, Depends(get_evidence_repository)],
+    custody: Annotated[EvidenceCustodyRepository, Depends(get_evidence_custody_repository)],
+    alerts: Annotated[AlertRepository, Depends(get_alert_repository)],
+    audit_logs: Annotated[AuditLogRepository, Depends(get_audit_repository)],
+) -> ReportService:
+    return ReportService(
+        organizations=organizations,
+        incidents=incidents,
+        attack_chains=attack_chains,
+        evidence=evidence,
+        custody=custody,
+        alerts=alerts,
+        audit_logs=audit_logs,
+    )
 
 
 async def get_current_user(

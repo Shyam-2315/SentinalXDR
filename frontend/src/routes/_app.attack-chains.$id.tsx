@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { ArrowLeft, Target } from "lucide-react";
+import { ArrowLeft, FileDown, Target } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { fmtDate, fmtRelative, toArray } from "@/lib/format";
@@ -10,6 +10,8 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { MitreBadges } from "@/components/common/MitreBadges";
 import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { saveDownload, sentinelApi } from "@/lib/sentinelxdr-api";
 
 export const Route = createFileRoute("/_app/attack-chains/$id")({ component: ChainDetail });
 
@@ -28,6 +30,13 @@ function ChainDetail() {
     onSuccess: () => {
       toast.success("Chain updated");
       void qc.invalidateQueries({ queryKey: ["chain", id] });
+    },
+  });
+  const exportReport = useMutation({
+    mutationFn: () => sentinelApi.downloadAttackChainReport(id),
+    onSuccess: (download) => {
+      saveDownload(download);
+      toast.success("Attack chain report exported");
     },
   });
 
@@ -55,23 +64,34 @@ function ChainDetail() {
       >
         <ArrowLeft className="h-4 w-4" /> Back to attack chains
       </Link>
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">
-          {String(d.title ?? "Attack Chain")}
-        </h1>
-        <SeverityBadge severity={(d.severity as string) ?? undefined} />
-        <StatusBadge status={(d.status as string) ?? undefined} />
-        <select
-          value={(d.status as string) ?? "active"}
-          onChange={(e) => updateStatus.mutate(e.target.value)}
-          className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-xl font-semibold tracking-tight">
+            {String(d.title ?? "Attack Chain")}
+          </h1>
+          <SeverityBadge severity={(d.severity as string) ?? undefined} />
+          <StatusBadge status={(d.status as string) ?? undefined} />
+          <select
+            value={(d.status as string) ?? "active"}
+            onChange={(e) => updateStatus.mutate(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+          >
+            {["active", "contained", "resolved"].map((s) => (
+              <option key={s} value={s}>
+                {s.replace("_", " ")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => exportReport.mutate()}
+          disabled={exportReport.isPending}
         >
-          {["active", "contained", "resolved"].map((s) => (
-            <option key={s} value={s}>
-              {s.replace("_", " ")}
-            </option>
-          ))}
-        </select>
+          <FileDown className="h-4 w-4" />
+          Export PDF
+        </Button>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

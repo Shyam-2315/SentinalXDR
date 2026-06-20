@@ -1,15 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, FileDown } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { fmtDate, toArray } from "@/lib/format";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState, LoadingState } from "@/components/common/PageState";
 import { JsonViewer } from "@/components/common/JsonViewer";
 import { StatusBadge } from "@/components/common/StatusBadge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { saveDownload, sentinelApi } from "@/lib/sentinelxdr-api";
 
 export const Route = createFileRoute("/_app/audit")({ component: AuditLogsPage });
 
@@ -51,17 +54,35 @@ function AuditLogsPage() {
     queryKey: ["audit", queryString],
     queryFn: () => api.get<unknown>(`/api/audit${queryString}`),
   });
+  const exportCsv = useMutation({
+    mutationFn: () => sentinelApi.downloadAuditCsv(),
+    onSuccess: (download) => {
+      saveDownload(download);
+      toast.success("Audit CSV exported");
+    },
+  });
   const rows = toArray<AuditLog>(query.data);
   const actions = uniqueOptions(rows.map((row) => row.action));
   const resourceTypes = uniqueOptions(rows.map((row) => row.resource_type));
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Audit Logs</h1>
-        <p className="text-sm text-muted-foreground">
-          Immutable user and system activity for compliance review.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Audit Logs</h1>
+          <p className="text-sm text-muted-foreground">
+            Immutable user and system activity for compliance review.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => exportCsv.mutate()}
+          disabled={exportCsv.isPending}
+        >
+          <FileDown className="h-4 w-4" />
+          Export CSV
+        </Button>
       </div>
 
       <div className="flex flex-wrap gap-2">

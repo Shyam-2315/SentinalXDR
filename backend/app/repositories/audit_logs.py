@@ -57,6 +57,29 @@ class AuditLogRepository:
             return None
         return AuditLog.model_validate(document)
 
+    async def list_for_resource(
+        self,
+        *,
+        organization_id: str,
+        resource_type: str,
+        resource_id: str,
+        limit: int = 100,
+        skip: int = 0,
+    ) -> list[AuditLog]:
+        cursor = (
+            self.collection.find(
+                {
+                    "organization_id": organization_id,
+                    "resource_type": resource_type,
+                    "resource_id": resource_id,
+                }
+            )
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        return [AuditLog.model_validate(document) async for document in cursor]
+
     def _build_query(
         self,
         *,

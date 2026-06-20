@@ -12,6 +12,7 @@ import {
   Shield,
   ClipboardList,
   FolderLock,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -27,6 +28,7 @@ const nav = [
   { to: "/evidence", label: "Evidence Vault", icon: FolderLock },
   { to: "/attack-chains", label: "Attack Chains", icon: GitBranch },
   { to: "/mitre", label: "MITRE Summary", icon: Crosshair },
+  { to: "/reports", label: "Reports", icon: FileText },
   { to: "/audit", label: "Audit Logs", icon: ClipboardList, adminOnly: true },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;

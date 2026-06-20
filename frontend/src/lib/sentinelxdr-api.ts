@@ -17,7 +17,7 @@ export type EvidenceUploadInput = {
   tags?: string;
 };
 
-async function downloadFile(path: string) {
+async function downloadFile(path: string, fallbackFilename = "sentinelxdr-download") {
   const token = authStore.getAccess();
   const response = await fetch(`${BASE_URL}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -28,7 +28,16 @@ async function downloadFile(path: string) {
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") ?? "";
   const match = disposition.match(/filename="?([^";]+)"?/i);
-  return { blob, filename: match?.[1] ?? "evidence-download" };
+  return { blob, filename: match?.[1] ?? fallbackFilename };
+}
+
+export function saveDownload({ blob, filename }: { blob: Blob; filename: string }) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export const sentinelApi = {
@@ -98,7 +107,8 @@ export const sentinelApi = {
     if (payload.tags) form.set("tags", payload.tags);
     return api.post("/api/evidence", form);
   },
-  downloadEvidence: (evidenceId: string) => downloadFile(`/api/evidence/${evidenceId}/download`),
+  downloadEvidence: (evidenceId: string) =>
+    downloadFile(`/api/evidence/${evidenceId}/download`, "evidence-download"),
   verifyEvidence: (evidenceId: string) => api.post(`/api/evidence/${evidenceId}/verify`),
   linkEvidence: (evidenceId: string, incidentId: string) =>
     api.patch(`/api/evidence/${evidenceId}/link`, { incident_id: incidentId }),
@@ -106,4 +116,14 @@ export const sentinelApi = {
   archiveEvidence: (evidenceId: string) => api.post(`/api/evidence/${evidenceId}/archive`),
   restoreEvidence: (evidenceId: string) => api.post(`/api/evidence/${evidenceId}/restore`),
   getEvidenceCustody: (evidenceId: string) => api.get(`/api/evidence/${evidenceId}/custody`),
+
+  downloadIncidentReport: (incidentId: string) =>
+    downloadFile(`/api/reports/incidents/${incidentId}.pdf`, `incident-${incidentId}.pdf`),
+  downloadAttackChainReport: (chainId: string) =>
+    downloadFile(`/api/reports/attack-chains/${chainId}.pdf`, `attack-chain-${chainId}.pdf`),
+  downloadEvidenceReport: (evidenceId: string) =>
+    downloadFile(`/api/reports/evidence/${evidenceId}.pdf`, `evidence-${evidenceId}.pdf`),
+  downloadAuditCsv: () => downloadFile("/api/reports/audit.csv", "sentinelxdr-audit.csv"),
+  downloadExecutiveSummary: () =>
+    downloadFile("/api/reports/executive-summary.pdf", "sentinelxdr-executive-summary.pdf"),
 };

@@ -148,6 +148,12 @@ Phase 15 adds digital evidence management for SOC and law-enforcement workflows.
 
 Evidence APIs are available under `/api/evidence`; the frontend page is `/evidence`. Local storage defaults to `storage/evidence`, can be changed with `EVIDENCE_STORAGE_ROOT`, and is capped by `EVIDENCE_MAX_UPLOAD_MB` which defaults to `25`. See `docs/EVIDENCE_VAULT.md`.
 
+## Report Export
+
+Phase 16 adds organization-scoped report exports for investigations, evidence review, audit review, and executive summaries. PDF exports are generated with ReportLab and include organization name, generating user, timestamp, MITRE techniques, alerts, evidence hashes, custody events, audit references, and recommended actions where applicable.
+
+Report APIs are available under `/api/reports`; the frontend page is `/reports`. Incident, attack-chain, evidence, and executive-summary exports are PDFs. Audit export is CSV. See `docs/REPORTING.md`.
+
 ## Notes
 
 - Demo data is tagged with `sentinelxdr-demo`.

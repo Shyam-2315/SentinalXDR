@@ -11,6 +11,7 @@ from app.api.routes.detections import router as detections_router
 from app.api.routes.events import router as events_router
 from app.api.routes.evidence import router as evidence_router
 from app.api.routes.incidents import router as incidents_router
+from app.api.routes.reports import router as reports_router
 
 
 def build_api_router() -> APIRouter:
@@ -26,6 +27,7 @@ def build_api_router() -> APIRouter:
     router.include_router(evidence_router)
     router.include_router(dashboard_router)
     router.include_router(audit_logs_router)
+    router.include_router(reports_router)
     return router
 
 

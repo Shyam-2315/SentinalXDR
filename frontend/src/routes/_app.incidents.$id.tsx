@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
-import { ArrowLeft, FolderLock } from "lucide-react";
+import { ArrowLeft, FileDown, FolderLock } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { fmtRelative, toArray } from "@/lib/format";
@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { sentinelApi } from "@/lib/sentinelxdr-api";
+import { saveDownload, sentinelApi } from "@/lib/sentinelxdr-api";
 
 export const Route = createFileRoute("/_app/incidents/$id")({ component: IncidentDetail });
 
@@ -67,6 +67,13 @@ function IncidentDetail() {
       void qc.invalidateQueries({ queryKey: ["incident", id] });
     },
   });
+  const exportReport = useMutation({
+    mutationFn: () => sentinelApi.downloadIncidentReport(id),
+    onSuccess: (download) => {
+      saveDownload(download);
+      toast.success("Incident report exported");
+    },
+  });
 
   if (query.isLoading) {
     return <LoadingState label="Loading incident" />;
@@ -92,13 +99,24 @@ function IncidentDetail() {
       >
         <ArrowLeft className="h-4 w-4" /> Back to incidents
       </Link>
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold tracking-tight">{String(d.title ?? "Incident")}</h1>
-        <SeverityBadge severity={(d.severity as string) ?? undefined} />
-        <StatusBadge status={(d.status as string) ?? undefined} />
-        <span className="text-xs text-muted-foreground">
-          First seen {fmtRelative(d.first_seen_at as string)}
-        </span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-xl font-semibold tracking-tight">{String(d.title ?? "Incident")}</h1>
+          <SeverityBadge severity={(d.severity as string) ?? undefined} />
+          <StatusBadge status={(d.status as string) ?? undefined} />
+          <span className="text-xs text-muted-foreground">
+            First seen {fmtRelative(d.first_seen_at as string)}
+          </span>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => exportReport.mutate()}
+          disabled={exportReport.isPending}
+        >
+          <FileDown className="h-4 w-4" />
+          Export PDF
+        </Button>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
